@@ -3,11 +3,28 @@
 /*
  * Design tokens (colours, fonts, the @theme {} block and the [data-theme]
  * overrides) live in @datagym/design - the single source of truth shared with
- * datagym and the other quests. The accent routes through --lab-accent, which
- * defaults to dbt's coral #ff694a, so this lab needs no override.
+ * datagym and the other quests. The accent routes through --lab-accent /
+ * --lab-accent-strong (dark / light), defaulting to transform-lab's coral.
+ * We override below to DataGym's brand blues so modeling-lab reads as a
+ * distinct lab. The token names `--color-accent-orange*` are inherited from
+ * the design package and intentionally misleading - they hold the lab accent,
+ * whatever colour that is.
  * App-specific styles (utilities, keyframes, React Flow overrides) stay below.
  */
 @import "@datagym/design/theme.css";
+
+/*
+ * Lab accent: DataGym brand blues, both themes.
+ *   --lab-accent         (dark mode)  #3377A8 — official light-variant from
+ *                        the brand doc, bright enough to pop on dark surfaces.
+ *   --lab-accent-strong  (light mode) #00558C — canonical brand blue, deep
+ *                        enough to pass AA against white as both fill and text.
+ * See datagym/DECISIONS.md, "Visual-identity rework" (2026-05-20).
+ */
+:root {
+  --lab-accent: #3377A8;
+  --lab-accent-strong: #00558C;
+}
 
 /* Type scale: bump root font-size 10% on desktop so all rem-based typography
    renders comfortably without the non-standard `zoom` property. Mobile keeps

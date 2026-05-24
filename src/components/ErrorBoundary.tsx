@@ -34,7 +34,7 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div style={{ maxWidth: '520px', width: '100%' }}>
           <div style={{
             fontSize: '0.6875rem', letterSpacing: '0.15em', textTransform: 'uppercase',
-            color: 'var(--color-accent-orange, #ff694a)', marginBottom: '12px',
+            color: 'var(--color-accent-orange, #00558C)', marginBottom: '12px',
           }}>
             Something broke
           </div>
@@ -54,7 +54,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           </pre>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={this.handleReload} style={{
-              padding: '8px 14px', background: 'var(--color-accent-orange, #ff694a)',
+              padding: '8px 14px', background: 'var(--color-accent-orange, #00558C)',
               color: '#fff', border: 'none', borderRadius: '4px', fontSize: '0.8125rem', cursor: 'pointer',
             }}>Reload</button>
             <button onClick={this.handleReset} style={{
