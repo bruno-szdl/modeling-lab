@@ -2,7 +2,7 @@ import type { Lesson } from '../engine/types'
 import { lastQuerySucceeded } from '../engine/validators'
 
 /**
- * Lesson 4b — Side quest: dim_date.
+ * Lesson 3b — Side quest: dim_date.
  *
  * Optional. Maps to notebook 03b. Generate a calendar dim with
  * generate_series, enrich with EXTRACT and dayname. Sets up the LEFT JOIN
@@ -11,8 +11,8 @@ import { lastQuerySucceeded } from '../engine/validators'
  *
  * TODO(v1): full exercises (day_name, is_weekend, the holiday extension).
  */
-const lesson04b: Lesson = {
-  id: 4.5, // sorts between 4 and 5; the lessons/index treats fractional ids fine.
+const lesson03b: Lesson = {
+  id: 3.5, // sorts between 3 and 4; the lessons/index treats fractional ids fine.
   title: 'Side quest: dim_date',
   concept: `Calendar attributes (day-of-week, month name, quarter, holiday) are something you compute **once** in a date dimension, then JOIN to whenever a query needs them. The alternative — every query re-deriving \`EXTRACT(quarter FROM …)\` — is slow, repetitive, and inconsistent.
 
@@ -36,4 +36,4 @@ SELECT COUNT(*) AS days FROM dim_date;`,
   ],
 }
 
-export default lesson04b
+export default lesson03b

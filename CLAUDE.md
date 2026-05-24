@@ -1,102 +1,118 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
+
+## What this is
+
+The **Data Modeling Lab** — `modeling-lab.datagym.io`. A browser-only, no-account interactive lab that teaches data modeling *for analytics engineering*. Sister to `transform-lab` (the dbt lab); part of the DataGym.io family.
+
+It is **not** a complete data-modeling course. It teaches the modeling decisions an analytics engineer makes when turning raw operational tables into analytics-ready models: grain, entity vs event, column roles, dims, facts, joins-that-don't-break-grain, metrics + fan-out + additivity, and the final mart.
+
+Audience: SQL-proficient analysts moving toward analytics engineering. Not absolute beginners.
 
 ## Commands
 
-```bash
-npm run dev      # Start Vite dev server at localhost:5173
-npm run build    # TypeScript check + production build → dist/
-npm run lint     # ESLint validation
-npm run preview  # Preview production build locally
+```sh
+npm install
+npm run dev      # http://localhost:5173 (Vite)
+npm run build    # tsc -b && vite build → dist/
+npm run lint     # eslint
 ```
 
-There are no automated tests — task completion is validated via `validate()` functions in each lesson definition.
-
-## Architecture
-
-**Analytics Engineering Quest** (`ae-quest`) is a browser-based interactive tool for learning dbt, inspired by SQLBolt. It runs entirely in-browser with no backend: SQL executes in DuckDB WASM, the editor is Monaco, and the DAG is rendered with React Flow.
-
-It is a course of **15 lessons** (lesson 0 is the intro page, lessons 1–14 teach core dbt concepts). Each lesson teaches one concept, then gives the learner 3–5 hands-on **tasks** that share a single workspace, plus an optional end-of-lesson quiz.
-
-### Stack
-
-- **React 19 + TypeScript** (strict mode) — UI
-- **Zustand** — all game/UI state in `src/store/gameStore.ts`
-- **Vite + Tailwind CSS 4** — build and styling
-- **DuckDB WASM** — in-browser SQL execution
-- **Monaco Editor** — code editing with file tabs
-- **React Flow + Dagre** — DAG visualization
-
-### Key directories
+## Architecture (cheat sheet)
 
 ```
 src/
-├── engine/          # dbt simulation: parse SQL, build DAG, execute against DuckDB, run CLI commands
-├── lessons/         # Lesson definitions (lesson00.ts–lesson14.ts), the shared _canonical.ts snapshot, index.ts
-├── components/      # React UI panels (Editor, TerminalPanel, DagPanel, LessonPanel, IntroPage, etc.)
-├── store/
-│   └── gameStore.ts # Zustand store: files, ranModels, testResults, compiledModels, completedTasks, theme
-└── index.css        # CSS variable theming (dark default, light variant)
+  engine/
+    types.ts        Lesson, Step (SqlStep | CheckpointStep), LessonState, stepKey
+    duckdb.ts       DuckDB-WASM bootstrap, runQuery/exec/registerCsv/resetDb
+    sqlRunner.ts    Run the editor's SQL; multi-statement aware; lists materialized tables
+    validators.ts   lastQueryRowHasValue / tableExists / lastQueryRowCountEquals / ...
+    errors.ts       errorMessage(unknown) → string
+  seeds/
+    index.ts        DATASHOP_SEEDS — 5 raw CSVs from data-modeling-notebook/data/
+    raw_*.csv       The DataShop dataset (4 cust, 4 prod, 6 orders, 9 items, 7 pmts)
+  lessons/
+    lesson00.ts     Full-page intro (rendered by IntroPage, not LessonPanel)
+    lesson01.ts     Grain — fully polished reference
+    lesson02..07    Stubs (typed; concept + 1-2 example steps each)
+    lesson03b.ts    dim_date side quest (id 3.5 — sorts between 3 and 4)
+    index.ts        lessons[], getLessonById, getLastLessonId, isSideQuest, stepKey
+                    NOTE: data-quality is NOT a lesson — see "What's NOT in v1" below
+  store/
+    gameStore.ts    Zustand: editorSql, lastQuery, materializedTables,
+                    completedSteps, passedCheckpointKeys, runQuery, loadLesson, ...
+  components/
+    Workspace.tsx   3-region layout: LessonPanel | Editor / ResultsPanel
+    LessonPanel.tsx Renders concept + steps[] (SQL or checkpoint)
+    Editor.tsx      Single-buffer Monaco + Run button (⌘↵)
+    ResultsPanel.tsx Renders `lastQuery` rows / error
+    IntroPage.tsx   Lesson-0 landing
+    CourseComplete.tsx Mart finale (shown after lesson 7)
+    Header / LabBar / PrivacyPage / ErrorBoundary / Markdownish
 ```
 
-### Engine pipeline
+## Lesson model
 
-1. **`commandParser.ts`** — parses `dbt <subcommand>` input and `--select` / `--exclude` selectors (`+model`, `model+`, `tag:`, `path:`)
-2. **`compiler.ts`** — extracts `ref()`, `source()`, `config()` from SQL Jinja-like syntax
-3. **`dagBuilder.ts`** — builds node/edge graph; infers layer (staging/intermediate/mart) from naming; reads `.yml` for sources
-4. **`executor.ts`** — compiles and runs SQL in DuckDB; handles VIEW vs TABLE materialization
-5. **`runner.ts`** — dispatches `dbt run/test/build/show/compile/seed/snapshot`, formats terminal output
-6. **`tests.ts`** — parses `schema.yml` generic tests (`not_null`, `unique`, `accepted_values`, `relationships`) and runs them as real SQL against DuckDB
-7. **`validators.ts`** — helpers used by each lesson task's `validate()` to check completion
+```ts
+type Step =
+  | { kind: 'sql'; id; prompt; hint?; solution?; explanation?;
+      starterSql?: string; validate: (state: LessonState) => boolean }
+  | { kind: 'checkpoint'; id; question; options: string[];
+      correctIndex: number; explanation: string }
 
-`snapshots.ts` and incremental-model handling still exist for engine compatibility but are **not used by any current lesson**.
+type Lesson = {
+  id: number; title; concept; schemaSketch?; seeds?; preMaterialize?;
+  steps: Step[]; furtherReading?; dbtBridge?
+}
+```
 
-### Lesson structure
+- **Side quests** use a non-integer id (lesson 3b is `3.5`). `Number.isInteger(id)` distinguishes.
+- **Lesson 0** has `steps: []`; it is the intro, rendered by `<IntroPage>` not `<LessonPanel>`.
+- **Validators** are pure functions over `LessonState` (editor SQL, last query result, materialized tables, passed checkpoints). They run after every `runQuery`.
 
-Each lesson file (`src/lessons/lessonNN.ts`) exports a `Lesson` object (type in `src/engine/types.ts`):
+## Conventions
 
-- `concept` — the explanatory text shown above the tasks (minimal markdown: `**bold**`, `` `code` ``, fenced blocks, `-` lists)
-- `initialFiles` — starting SQL/YAML/CSV file contents
-- `openFiles` — which files open as editor tabs on load
-- `seeds` — CSV data registered directly as warehouse tables (`raw.customers` → DuckDB `raw.customers`)
-- `preRanModels` — models silently materialized into DuckDB on lesson load
-- `tasks` — array of `Task { id, prompt, hint?, validate(state) => boolean }`
-- `quiz` — optional end-of-lesson multiple-choice question
-- `goal.dagShape` — optional target DAG shape
-- `panels` — which side panels (`files` / `warehouse` / `lineage`) this lesson needs; omit for all, `[]` for none. The Editor + Console are always visible.
-- `furtherReading` — optional links to official dbt docs
+- **Single SQL buffer per lesson**, not a file tree (unlike transform-lab). Modeling lessons work against the raw seeds; the editor is a scratchpad.
+- **Table naming**: flat `raw_customers`, not `raw.customers` source-style (matches the notebook).
+- **No comments explaining what code does.** Only WHY-comments (hidden constraint, surprising behavior).
+- **No em-dashes** in user-facing text where avoidable.
+- **i18n**: currently English-only. PT support is the next major polish task.
+- **dbt** appears only as `> 💡 In dbt: …` callouts inside `Lesson.dbtBridge`. It is a bridge, never a main topic.
 
-Tasks validate purely from observed `GameState` (`files`, `ranModels`, `testResults`, `compiledModels`, `loadedSeeds`, etc.). **Task completion is sticky** — once a task is in `completedTasks` it is never re-evaluated (`gameStore.ts` `checkTasks`), so a `validate()` may key off a transient state (e.g. `testResults === 'fail'`) and stay completed after that state changes.
+## Reference numbers (DataShop)
 
-### The canonical project
+Memorize these — every lesson keys off them.
 
-Every lesson is a slice of the **same fictional e-commerce dbt project**. `src/lessons/_canonical.ts` holds the "ideal" file contents at each milestone (the shared raw CSVs, staging/mart model SQL, `schema.yml` snapshots). Each lesson imports the snapshot constants it starts from, so the project evolves coherently lesson to lesson.
+| Table | Rows | PK | Notes |
+|---|---|---|---|
+| raw_customers | 4 | customer_id | — |
+| raw_products | 4 | product_id | P003=80, P004=40 (basic); P001/P002 ≥100 (premium) |
+| raw_orders | 6 | order_id | O003 cancelled |
+| raw_order_items | 9 | order_item_id | 3 orders have multiple items |
+| raw_payments | 7 | payment_id | O006 has 2 rows: paid + refunded |
 
-### Internationalization (i18n)
+| Metric | Value |
+|---|---|
+| gross_sales (cancelled excluded) | 1060 |
+| paid_revenue (status='paid') | 1060 |
+| fan-out trap (SUM amount JOIN items) | **1800** |
+| AOV (1060 / 5 paid orders) | 212 |
+| mart_monthly_sales | 2 rows (2024-03 and 2024-04) |
 
-**CRITICAL: Any time you touch text that is exposed to the student, you must update all translation files.**
+## What's NOT in v1
 
-Student-facing text lives in two places:
-- `src/i18n/locales/` — UI strings (button labels, headings, status messages). Files: `en.json`, `pt.json`, `es.json`
-- `src/i18n/lessons/` — lesson-specific text (concept explanations, task prompts, hints, quiz questions/answers). Files: `pt.json`, `es.json` (English is the source in the lesson TS files themselves)
+- **Data quality / testing as a lesson** (notebook `02b`). Cut deliberately: testing is a discipline of its own and overlaps with transform-lab's territory. The grain check in lesson 1 is the only DQ touchpoint, framed as the operational definition of a PK — with a one-paragraph `dbtBridge` pointing the learner at transform-lab for the four named tests. Do **not** add a DQ side quest here; it would be a worse version of what transform-lab already does.
+- SCDs and fact-table types (notebook 07/08) — deferred to v2
+- The three notebook session quizzes — replaced by inline checkpoints
+- Multi-language UI — EN only at launch
+- AI / Claude framing — out of scope here
+- Mobile layout — defer; SQL editor is awkward on phones
 
-If you add or change any of the following, update `pt.json` and `es.json` accordingly:
-- Lesson `concept` text
-- Task `prompt` or `hint` strings
-- Quiz questions or answer choices
-- Any UI string present in `src/i18n/locales/en.json`
+## When you make changes
 
-Never leave a translation key missing or stale. If you are unsure of the correct translation, add a best-effort translation and leave a `// TODO: verify translation` comment in the PR description — but do not skip the update entirely.
+1. `npm run build` must pass before declaring done. Type-checks + Vite build = the verification gate.
+2. If you add a step that depends on a pre-built dim/fact, add it to `Lesson.preMaterialize` so the lesson is self-sufficient.
+3. If you add a new lesson, register it in `src/lessons/index.ts`. The lesson selector in `Header.tsx` and the next/previous logic in `LessonPanel.tsx` derive from that list.
 
-### Adding a lesson
-
-Create `src/lessons/lessonNN.ts` and register it in `src/lessons/index.ts`. `getLastLessonId()` returns `max(lesson.id)` automatically — it's the single source of truth for "is this the last lesson?", used by the lesson panel / navigation. Do not guard "last lesson" with `lessons.length`.
-
-### Theming
-
-CSS variables defined in `index.css` drive all colors. Theme (dark/light) is persisted to `localStorage` and applied via `document.documentElement.dataset.theme`. Components use CSS vars rather than hardcoded colors.
-
-### State shape
-
-`gameStore.ts` holds: `files` (record of filename → content), `ranModels`, `shownModels`, `compiledModels`, `testResults`, `loadedSeeds`, `buildSucceeded`, `openedFiles`, `terminalHistory`, `currentLessonId`, `completedTasks` (keyed `<lessonId>.<taskId>`), `revealedHints`, `correctQuizzes`, `seenPanels`, `bottomTab`, and `theme`. Only `theme` and `seenPanels` are persisted to `localStorage` (via `safeStorage`); task progress is in-memory for the session.
+See `datagym/DECISIONS.md` for the broader DataGym architecture decisions (subdomain convention, page-shape vs app-shape split, design-token sharing).

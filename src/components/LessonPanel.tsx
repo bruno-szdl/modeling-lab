@@ -158,9 +158,9 @@ export default function LessonPanel() {
 }
 
 function nextLessonId(current: number): number {
-  // Skip 4b (id 4.5) when stepping forward unless we're already there.
-  if (current === 4) return 4.5
-  if (current === 4.5) return 5
+  // Skip 3b (id 3.5) when stepping forward unless we're already there.
+  if (current === 3) return 3.5
+  if (current === 3.5) return 4
   return current + 1
 }
 

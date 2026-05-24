@@ -4,12 +4,11 @@ import lesson00 from './lesson00'
 import lesson01 from './lesson01'
 import lesson02 from './lesson02'
 import lesson03 from './lesson03'
+import lesson03b from './lesson03b'
 import lesson04 from './lesson04'
-import lesson04b from './lesson04b'
 import lesson05 from './lesson05'
 import lesson06 from './lesson06'
 import lesson07 from './lesson07'
-import lesson08 from './lesson08'
 
 /**
  * Ordered curriculum.
@@ -17,42 +16,42 @@ import lesson08 from './lesson08'
  *   0  — Intro (full-page)
  *   1  — The grain of a table          ✅ polished
  *   2  — Entities, events, column roles
- *   3  — Data quality checks
- *   4  — Dimensions
- *   4b — Side quest: dim_date           (optional, sorts between 4 and 5)
- *   5  — Facts
- *   6  — Joins that don't break grain
- *   7  — Metrics, fan-out, additivity
- *   8  — Build the mart                 → finale screen after completion
+ *   3  — Dimensions
+ *   3b — Side quest: dim_date           (optional, sorts between 3 and 4)
+ *   4  — Facts
+ *   5  — Joins that don't break grain
+ *   6  — Metrics, fan-out, additivity
+ *   7  — Build the mart                 → finale screen after completion
  *
- * Lesson 1 is the only fully-polished content lesson in this scaffold; 2–8
- * and 4b are well-typed stubs with concept text + 1–2 example steps each.
+ * Data quality / testing is deliberately NOT a core lesson here. The grain
+ * test in lesson 1 is functionally a `unique` test; transform-lab teaches
+ * the dbt test family (`not_null`, `unique`, `accepted_values`,
+ * `relationships`) in its proper home — YAML config, `dbt test`, CI.
  */
 export const lessons: Lesson[] = [
   lesson00,
   lesson01,
   lesson02,
   lesson03,
+  lesson03b,
   lesson04,
-  lesson04b,
   lesson05,
   lesson06,
   lesson07,
-  lesson08,
 ]
 
 export function getLessonById(id: number): Lesson | undefined {
   return lessons.find((l) => l.id === id)
 }
 
-/** The highest content lesson id (the mart). 4b is a side quest, doesn't count. */
+/** The highest content lesson id (the mart). Side quests (non-integer ids) don't count. */
 export function getLastLessonId(): number {
   return lessons
     .filter((l) => Number.isInteger(l.id))
     .reduce((max, l) => (l.id > max ? l.id : max), 0)
 }
 
-/** True when the given id is a side quest (non-integer like 4.5 for 4b). */
+/** True when the given id is a side quest (non-integer like 3.5 for 3b). */
 export function isSideQuest(id: number): boolean {
   return !Number.isInteger(id)
 }

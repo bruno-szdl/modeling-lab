@@ -63,13 +63,12 @@ export default function IntroPage() {
           {[
             ['1', 'The grain of a table', 'What does one row represent? The anchor of everything.'],
             ['2', 'Entities, events, column roles', 'Three column roles — identifier, attribute, metric. The mental map for dims vs facts.'],
-            ['3', 'Data quality checks', 'The four named tests: not_null, unique, accepted_values, relationships.'],
-            ['4', 'Dimensions', 'One row per entity. Many descriptive columns, zero metrics.'],
-            ['4b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series. Optional.'],
-            ['5', 'Facts', 'Many rows per event. FKs + metrics + nothing else.'],
-            ['6', 'Joins that don\'t break grain', 'LEFT JOIN as the analytics default. WHERE vs ON. Anti-joins.'],
-            ['7', 'Metrics, fan-out, additivity', 'Predict 1060, run, get 1800. Learn why.'],
-            ['8', 'Build the mart', 'Aggregate each fact at its grain, then join. Two rows out.'],
+            ['3', 'Dimensions', 'One row per entity. Many descriptive columns, zero metrics.'],
+            ['3b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series. Optional.'],
+            ['4', 'Facts', 'Many rows per event. FKs + metrics + nothing else.'],
+            ['5', 'Joins that don\'t break grain', 'LEFT JOIN as the analytics default. WHERE vs ON. Anti-joins.'],
+            ['6', 'Metrics, fan-out, additivity', 'Predict 1060, run, get 1800. Learn why.'],
+            ['7', 'Build the mart', 'Aggregate each fact at its grain, then join. Two rows out.'],
           ].map(([num, title, desc]) => (
             <li key={num} style={{
               display: 'flex', gap: '12px', alignItems: 'flex-start',

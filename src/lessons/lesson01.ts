@@ -29,7 +29,7 @@ const lesson01: Lesson = {
 That answer is the **grain**. Get it wrong and your numbers will quietly drift — you'll count orders when you meant items, or sum revenue twice.
 
 In this lesson you'll inspect the DataShop e-commerce dataset, find the grain of each raw table, and learn the one objective test that proves a column is a **primary key**: \`COUNT(*) = COUNT(DISTINCT key)\`.`,
-  dbtBridge: `In dbt, the grain of every model is something you document explicitly (\`config(grain=...)\`, model docs, and \`unique\` + \`not_null\` tests on the key column). The check you'll write here is the **operational definition** of that key.`,
+  dbtBridge: `What you just wrote (\`COUNT(*) = COUNT(DISTINCT key)\`) is the operational definition of a primary key — and it's the same idea dbt formalizes as a \`unique\` test. dbt ships four such tests by convention: **\`not_null\`**, **\`unique\`**, **\`accepted_values\`**, and **\`relationships\`**, all declared in YAML. We don't dwell on them in this lab — testing is a discipline of its own and [transform-lab](https://transform-lab.datagym.io) is where you meet them properly.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {

@@ -3,48 +3,46 @@ import { lastQuerySucceeded } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 
 /**
- * Lesson 3 — Data quality checks.
+ * Lesson 3 — Dimensions.
  *
- * Maps to notebook 02b. Four named tests, the same four dbt ships natively:
- * not_null, unique, accepted_values, relationships. Each is taught as a
- * SQL query that returns "expected: zero rows".
+ * Maps to notebook 03. A dim is one row per entity, many descriptive
+ * columns, no metrics. Lesson 3b (dim_date) follows as an optional side
+ * quest.
  *
- * TODO(v1): full content + the simulated-failure demo (drop a customer_id
- * to make a `not_null` test catch a NULL).
+ * TODO(v1): exercises CREATE dim_customers, dim_products; the price_band
+ * derived-column exercise.
  */
 const lesson03: Lesson = {
   id: 3,
-  title: 'Data quality checks',
-  concept: `Before you build anything on top of a table, you check it. Four tests cover the vast majority of "I thought I trusted this data" surprises:
+  title: 'Dimensions',
+  concept: `A **dimension** table is one row per **entity** (one customer, one product), carrying the descriptive attributes that everything else will look up: name, city, category, price band.
 
-- **\`not_null\`** — no missing values in a column that shouldn't have them.
-- **\`unique\`** — no duplicates in a key column.
-- **\`accepted_values\`** — categorical columns stay inside a closed list.
-- **\`relationships\`** — every foreign key has a parent row.
-
-Each test is a **SQL query that should return zero rows**. That's the operational definition: "the test passes when no problem is found".`,
-  dbtBridge: `These are exactly the four generic tests dbt ships with. The YAML you'll write later is just sugar over the same "should return zero rows" idea.`,
+Two things matter:
+1. **Few rows, many columns** — dims describe stable, small sets.
+2. **No metrics live here** — quantities and amounts belong in facts (next lesson). \`list_price\` is the *posted* price of the product (an attribute), not what was paid in any specific sale (that's a metric on the order item).`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
       kind: 'sql',
-      id: 'stub-not-null',
-      prompt: `[stub] Write a not_null test for raw_orders.customer_id — return any row where it's NULL.`,
-      starterSql: `SELECT * FROM raw_orders WHERE customer_id IS NULL;`,
+      id: 'stub-build-dim',
+      prompt: `[stub] Build dim_customers from raw_customers. Add a derived signup_year column.`,
+      starterSql: `CREATE OR REPLACE TABLE dim_customers AS
+SELECT * FROM raw_customers;
+SELECT * FROM dim_customers;`,
       validate: (s) => lastQuerySucceeded(s),
     },
     {
       kind: 'checkpoint',
-      id: 'pk-equals',
-      question: `Which two tests together define a primary key?`,
+      id: 'where-does-name-live',
+      question: `If a customer's name changes, which table do you edit?`,
       options: [
-        '`not_null` + `accepted_values`',
-        '`not_null` + `unique`',
-        '`unique` + `relationships`',
-        '`accepted_values` + `relationships`',
+        '`fact_orders` — update every row for that customer',
+        '`dim_customers` — one row, one edit, and every join picks it up',
+        'Both — they need to stay consistent',
+        '`raw_customers` — never derive a dim',
       ],
       correctIndex: 1,
-      explanation: `A PK column has no nulls (\`not_null\`) and no duplicates (\`unique\`). Run both — if both pass, the column is functionally a primary key.`,
+      explanation: `That's *the point* of a dimension: descriptive attributes live in **one place**. Facts only carry the FK (\`customer_id\`), so the update propagates via JOINs at query time.`,
     },
   ],
 }

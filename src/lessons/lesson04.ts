@@ -3,46 +3,49 @@ import { lastQuerySucceeded } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 
 /**
- * Lesson 4 — Dimensions.
+ * Lesson 4 — Facts.
  *
- * Maps to notebook 03. A dim is one row per entity, many descriptive
- * columns, no metrics. Lesson 4b (dim_date) follows as an optional side
- * quest.
+ * Maps to notebook 04. Many rows, few columns: FKs + metrics. The grain
+ * trap demo (a duplicated dim row breaks a JOIN that looked correct) is
+ * the punchline.
  *
- * TODO(v1): exercises CREATE dim_customers, dim_products; the price_band
- * derived-column exercise.
+ * TODO(v1): build fact_orders, fact_order_items, fact_payments. Demo the
+ * duplicate-dim-row JOIN inflation.
  */
 const lesson04: Lesson = {
   id: 4,
-  title: 'Dimensions',
-  concept: `A **dimension** table is one row per **entity** (one customer, one product), carrying the descriptive attributes that everything else will look up: name, city, category, price band.
+  title: 'Facts',
+  concept: `A **fact** table is one row per **event** — an order placed, an order item, a payment. It carries:
 
-Two things matter:
-1. **Few rows, many columns** — dims describe stable, small sets.
-2. **No metrics live here** — quantities and amounts belong in facts (next lesson). \`list_price\` is the *posted* price of the product (an attribute), not what was paid in any specific sale (that's a metric on the order item).`,
+- **Foreign keys** to dims (\`customer_id\`, \`product_id\`).
+- **Metrics** you'll aggregate (\`quantity\`, \`amount\`).
+- **Almost nothing else.** No \`customer_name\` — that would duplicate dim data on every row.
+
+Facts grow forever as events happen. The discipline is to keep them lean: lean schema, clean grain, metrics ready to \`SUM\`.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
       kind: 'sql',
-      id: 'stub-build-dim',
-      prompt: `[stub] Build dim_customers from raw_customers. Add a derived signup_year column.`,
-      starterSql: `CREATE OR REPLACE TABLE dim_customers AS
-SELECT * FROM raw_customers;
-SELECT * FROM dim_customers;`,
+      id: 'stub-build-fact',
+      prompt: `[stub] Build fact_orders carrying only PK, FKs, status, and order_date — no customer_name.`,
+      starterSql: `CREATE OR REPLACE TABLE fact_orders AS
+SELECT order_id, customer_id, order_date, order_status
+FROM raw_orders;
+SELECT * FROM fact_orders;`,
       validate: (s) => lastQuerySucceeded(s),
     },
     {
       kind: 'checkpoint',
-      id: 'where-does-name-live',
-      question: `If a customer's name changes, which table do you edit?`,
+      id: 'order-total-on-fact',
+      question: `Should \`fact_orders\` carry an \`order_total\` column?`,
       options: [
-        '`fact_orders` — update every row for that customer',
-        '`dim_customers` — one row, one edit, and every join picks it up',
-        'Both — they need to stay consistent',
-        '`raw_customers` — never derive a dim',
+        'Yes — every fact needs a metric, otherwise it\'s just an index',
+        'No — order_total can be computed by summing fact_order_items or fact_payments; baking it in invites drift',
+        'Yes — but only for orders with one item',
+        'No — totals live in the dim',
       ],
       correctIndex: 1,
-      explanation: `That's *the point* of a dimension: descriptive attributes live in **one place**. Facts only carry the FK (\`customer_id\`), so the update propagates via JOINs at query time.`,
+      explanation: `If \`order_total\` is a stored column AND items/payments exist, you have two sources of truth and they will diverge. Better: keep \`fact_orders\` lean, derive totals from the line-level facts. This also keeps the grain honest (one order = one row, period).`,
     },
   ],
 }

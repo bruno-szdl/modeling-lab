@@ -3,51 +3,51 @@ import { lastQuerySucceeded } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 
 /**
- * Lesson 6 — Joins that don't break grain.
+ * Lesson 6 — Metrics, fan-out, additivity.
  *
- * Maps to notebook 04b. LEFT JOIN as the analytics default; anti-joins;
- * WHERE vs ON for filters on the right side; COALESCE.
+ * Maps to notebook 05. The headline aha moment: SUM(amount) JOIN items
+ * returns 1800 when the right answer is 1060. The 5 paid payments fan out
+ * across 8 line items and the sum double-counts.
  *
- * TODO(v1): the Diego-disappears example (cancelled-order filter in WHERE
- * vs ON), the anti-join exercise, the dim_date revenue-by-day.
+ * TODO(v1): the fan-out demo (predict-then-run), the AOV exercise
+ * (1060 / 5 = 212), and the fully/semi/non-additive vocabulary.
  */
 const lesson06: Lesson = {
   id: 6,
-  title: `Joins that don't break grain`,
-  concept: `**\`LEFT JOIN\` is the default for analytics**. It keeps every row on the left side, even when nothing matches on the right. \`INNER JOIN\` is the special case for "the row is useless without a match".
+  title: 'Metrics, fan-out, additivity',
+  concept: `A **metric** has three parts you commit to *before* writing SQL: a definition (in English), a formula, and a grain. Skip any of them and the team will argue about whose number is right.
 
-Two traps to internalize:
+The trap that ruins more dashboards than any other is **fan-out**: you \`SUM\` a metric *after* a JOIN that duplicated its rows. \`SUM(amount)\` from \`raw_payments\` JOINed to \`raw_order_items\` reports **1800** when the right answer is **1060** — because each payment now appears once per line item on its order.
 
-1. **Filters on the right side go in \`ON\`, not \`WHERE\`.** Otherwise the NULL rows from non-matches get filtered out and your \`LEFT JOIN\` silently becomes an \`INNER JOIN\`.
-2. **\`COUNT(\\*)\` vs \`COUNT(column)\`** after a LEFT JOIN: the first counts everyone, the second skips the NULLs. Pick the one that answers the question you're asking.`,
+The rule: **calculate every metric at its own grain first, then join the rolled-up numbers together.**`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
       kind: 'sql',
-      id: 'stub-left-join',
-      prompt: `[stub] Total spent per customer, including customers with zero. Use LEFT JOIN and COALESCE.`,
-      starterSql: `SELECT
-    c.customer_id, c.customer_name,
-    COALESCE(SUM(i.item_amount), 0) AS total_spent
-FROM raw_customers AS c
-LEFT JOIN raw_order_items AS i
-       ON i.order_id IN (SELECT order_id FROM raw_orders WHERE customer_id = c.customer_id)
-GROUP BY c.customer_id, c.customer_name
-ORDER BY total_spent DESC;`,
+      id: 'stub-fanout-trap',
+      prompt: `[stub] Run the fan-out trap. Predict the result before running.`,
+      starterSql: `-- BEFORE you run: predict the number.
+-- The correct paid revenue is 1060.
+-- What does this query return?
+SELECT SUM(p.amount) AS paid_revenue
+FROM raw_payments AS p
+JOIN raw_order_items AS i ON i.order_id = p.order_id
+WHERE p.payment_status = 'paid';`,
       validate: (s) => lastQuerySucceeded(s),
+      explanation: `1800. Each \`paid\` payment got duplicated once per line item on its order — 5 paid payments fan out to 8 rows, and \`SUM(amount)\` adds the same payment multiple times. Lesson 7 (the mart) shows how to compute each metric at its own grain and then bring the answers together safely.`,
     },
     {
       kind: 'checkpoint',
-      id: 'where-or-on',
-      question: `You're \`LEFT JOIN\`ing customers to orders, and you want to exclude **cancelled** orders. Where does the filter go?`,
+      id: 'aov-additivity',
+      question: `**Average Order Value** (AOV) is a ratio: paid revenue ÷ paid orders. Across the year, is AOV additive over months?`,
       options: [
-        '`WHERE o.order_status <> \'cancelled\'`',
-        '`ON ... AND o.order_status <> \'cancelled\'`',
-        'Either works the same',
-        '`HAVING o.order_status <> \'cancelled\'`',
+        'Yes — AOV is just an average; averages add',
+        'No — you can\'t add monthly AOVs to get yearly AOV; you have to recompute from the ingredients',
+        'Yes — if the months have the same row count',
+        'No — only sums are additive',
       ],
       correctIndex: 1,
-      explanation: `In the \`ON\`. Otherwise the \`WHERE\` drops rows where the right side is NULL (the customers who never ordered, AND any customer whose only order was cancelled) — your \`LEFT JOIN\` collapses to an INNER. The filter goes in \`ON\` so the right side simply doesn't match for cancelled orders; the customer survives the join with NULLs on the right.`,
+      explanation: `AOV is **non-additive**. To get yearly AOV you need yearly revenue ÷ yearly orders, not the mean of monthly AOVs. The implication for the mart (next lesson): store the *ingredients* (\`SUM\`, \`COUNT(DISTINCT)\`), let the consumer recompute the ratio.`,
     },
   ],
 }

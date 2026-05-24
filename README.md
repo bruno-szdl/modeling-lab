@@ -11,13 +11,14 @@ A browser-based, no-account lab that teaches **data modeling for analytics engin
 | 0 | Intro / landing | — |
 | 1 | The grain of a table | 01_o_grao_dos_dados |
 | 2 | Entities, events, column roles | 02_entidades_eventos_e_colunas |
-| 3 | Data quality checks | 02b_qualidade_dos_dados |
-| 4 | Dimensions | 03_dimensoes |
-| 4b | Side quest: dim_date | 03b_dim_date |
-| 5 | Facts | 04_fatos_e_o_grao |
-| 6 | Joins that don't break grain | 04b_joins_para_analytics |
-| 7 | Metrics, fan-out, additivity | 05_metricas |
-| 8 | Build the mart → finale | 06_o_mart_final |
+| 3 | Dimensions | 03_dimensoes |
+| 3b | Side quest: dim_date | 03b_dim_date |
+| 4 | Facts | 04_fatos_e_o_grao |
+| 5 | Joins that don't break grain | 04b_joins_para_analytics |
+| 6 | Metrics, fan-out, additivity | 05_metricas |
+| 7 | Build the mart → finale | 06_o_mart_final |
+
+Data quality / testing (notebook `02b`) is deliberately not a core lesson here. Lesson 1's grain test is functionally a `unique` test; the four-test family (`not_null`, `unique`, `accepted_values`, `relationships`) is the home turf of [transform-lab](https://transform-lab.datagym.io), where they get a proper YAML + CI treatment.
 
 Bonus (SCDs, fact-table types) is deferred to v2.
 

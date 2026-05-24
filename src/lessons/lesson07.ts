@@ -1,53 +1,45 @@
 import type { Lesson } from '../engine/types'
-import { lastQuerySucceeded } from '../engine/validators'
+import { lastQuerySucceeded, tableExists } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 
 /**
- * Lesson 7 — Metrics, fan-out, additivity.
+ * Lesson 7 — Build the mart.
  *
- * Maps to notebook 05. The headline aha moment: SUM(amount) JOIN items
- * returns 1800 when the right answer is 1060. The 5 paid payments fan out
- * across 8 line items and the sum double-counts.
+ * Maps to notebook 06. The product. Each fact is aggregated at the mart's
+ * grain (month), then the per-fact CTEs are joined safely. Two rows out.
+ * Finale screen takes over after this lesson completes.
  *
- * TODO(v1): the fan-out demo (predict-then-run), the AOV exercise
- * (1060 / 5 = 212), and the fully/semi/non-additive vocabulary.
+ * TODO(v1): full build via CTEs, the net-revenue exercise, the
+ * reflection-questions checkpoint.
+ *
+ * Expected mart shape:
+ *   month     | gross_sales | paid_revenue | refunded | delivered | cancelled | refunded_orders
+ *   2024-03   |  460        | 460          | 0        | 2         | 1         | 0
+ *   2024-04   |  600        | 600          | 200      | 2         | 0         | 1
  */
 const lesson07: Lesson = {
   id: 7,
-  title: 'Metrics, fan-out, additivity',
-  concept: `A **metric** has three parts you commit to *before* writing SQL: a definition (in English), a formula, and a grain. Skip any of them and the team will argue about whose number is right.
+  title: 'Build the mart',
+  concept: `Everything you've practiced converges here. The mart is what business users actually query — \`SELECT * FROM mart_monthly_sales\` and the answer is in two rows.
 
-The trap that ruins more dashboards than any other is **fan-out**: you \`SUM\` a metric *after* a JOIN that duplicated its rows. \`SUM(amount)\` from \`raw_payments\` JOINed to \`raw_order_items\` reports **1800** when the right answer is **1060** — because each payment now appears once per line item on its order.
+The build strategy is **aggregate each fact at the mart's grain first, then join**. Three CTEs (gross sales per month, paid revenue per month, order counts per month), one final \`JOIN\` on \`month\`, done. No fan-out because nothing is at a finer grain at the join.
 
-The rule: **calculate every metric at its own grain first, then join the rolled-up numbers together.**`,
+The mart layer is the **product**; dim/fact are the **inputs**. Your consumers don't need to know dims and facts exist.`,
+  dbtBridge: `In dbt, this is the contents of \`models/marts/mart_monthly_sales.sql\` — same SQL, materialized as \`table\`, with tests on the grain and \`unique\` on \`month\`.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
       kind: 'sql',
-      id: 'stub-fanout-trap',
-      prompt: `[stub] Run the fan-out trap. Predict the result before running.`,
-      starterSql: `-- BEFORE you run: predict the number.
--- The correct paid revenue is 1060.
--- What does this query return?
-SELECT SUM(p.amount) AS paid_revenue
-FROM raw_payments AS p
-JOIN raw_order_items AS i ON i.order_id = p.order_id
-WHERE p.payment_status = 'paid';`,
-      validate: (s) => lastQuerySucceeded(s),
-      explanation: `1800. Each \`paid\` payment got duplicated once per line item on its order — 5 paid payments fan out to 8 rows, and \`SUM(amount)\` adds the same payment multiple times. Lesson 8 (the mart) shows how to compute each metric at its own grain and then bring the answers together safely.`,
-    },
-    {
-      kind: 'checkpoint',
-      id: 'aov-additivity',
-      question: `**Average Order Value** (AOV) is a ratio: paid revenue ÷ paid orders. Across the year, is AOV additive over months?`,
-      options: [
-        'Yes — AOV is just an average; averages add',
-        'No — you can\'t add monthly AOVs to get yearly AOV; you have to recompute from the ingredients',
-        'Yes — if the months have the same row count',
-        'No — only sums are additive',
-      ],
-      correctIndex: 1,
-      explanation: `AOV is **non-additive**. To get yearly AOV you need yearly revenue ÷ yearly orders, not the mean of monthly AOVs. The implication for the mart (next lesson): store the *ingredients* (\`SUM\`, \`COUNT(DISTINCT)\`), let the consumer recompute the ratio.`,
+      id: 'stub-build-mart',
+      prompt: `[stub] Build mart_monthly_sales. One row per month. Use CTEs to aggregate each fact at month grain, then join.`,
+      starterSql: `-- TODO: build mart_monthly_sales
+-- Expected: 2 rows (2024-03, 2024-04)
+-- 2024-03: gross_sales=460, paid_revenue=460
+-- 2024-04: gross_sales=600, paid_revenue=600, refunded=200
+`,
+      hint: `Start with three CTEs at month grain: gross sales (from raw_order_items + raw_orders, exclude cancelled), paid revenue (from raw_payments where status='paid'), refunded amounts. Then SELECT … FROM gross g LEFT JOIN paid p ON g.month = p.month …`,
+      validate: (s) => lastQuerySucceeded(s) && tableExists(s, 'mart_monthly_sales'),
+      explanation: `Two rows. That's the whole point of analytics modeling: heavy work upstream so the final answer is shaped exactly like the question.`,
     },
   ],
 }
