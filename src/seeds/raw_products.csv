@@ -1,0 +1,5 @@
+product_id,product_name,category,list_price
+P001,SQL Basics Course,Course,100
+P002,dbt Starter Course,Course,200
+P003,Data Notebook,Accessory,80
+P004,Analytics Mug,Accessory,40

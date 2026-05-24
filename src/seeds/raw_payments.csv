@@ -1,0 +1,8 @@
+payment_id,order_id,payment_date,payment_method,payment_status,amount
+PAY001,O001,2024-03-01,credit_card,paid,180
+PAY002,O002,2024-03-02,pix,paid,280
+PAY003,O003,2024-03-15,credit_card,failed,0
+PAY004,O004,2024-04-01,pix,paid,280
+PAY005,O005,2024-04-03,credit_card,paid,120
+PAY006,O006,2024-04-10,credit_card,paid,200
+PAY007,O006,2024-04-12,credit_card,refunded,-200
