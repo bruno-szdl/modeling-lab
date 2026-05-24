@@ -5,6 +5,7 @@ import {
   lastQueryContainsRow,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson05.svg?raw'
 
 /**
  * Lesson 5 — Joins that don't break grain.
@@ -40,6 +41,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson05: Lesson = {
   id: 5,
   title: `Joins that don't break grain`,
+  schemaSketch: { svg: sketch, alt: 'Two Venn-style diagrams side by side: LEFT JOIN (all of set A plus the intersection with B, highlighted in accent) and INNER JOIN (only the intersection of A and B, highlighted)' },
   concept: `**\`LEFT JOIN\` is the default for analytics.** It keeps every row on the left, even when nothing matches on the right. \`INNER JOIN\` is the special case — reserved for "the row is useless without a match" (e.g. an item must have a product).
 
 Three patterns to internalize:

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 140" style="width:100%;height:auto;display:block;" preserveAspectRatio="xMidYMid meet" font-family="JetBrains Mono, ui-monospace, monospace">
+  <text x="20" y="20" font-size="10" fill="currentColor" opacity="0.65" letter-spacing="0.06em">RAW_ORDERS</text>
+  <rect x="20" y="28" width="240" height="20" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+  <text x="28" y="42" font-size="10" fill="currentColor" opacity="0.7">order_id   customer_id   order_date</text>
+  <rect x="20" y="48" width="240" height="18" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.3"/>
+  <text x="28" y="61" font-size="10" fill="currentColor">O001          C001       2024-03-01</text>
+  <rect x="20" y="66" width="240" height="18" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.3"/>
+  <text x="28" y="79" font-size="10" fill="currentColor">O002          C002       2024-03-02</text>
+  <rect x="20" y="84" width="240" height="18" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.3"/>
+  <text x="28" y="97" font-size="10" fill="currentColor">O003          C001       2024-03-15</text>
+  <path d="M 270 75 L 295 75 L 290 70 M 295 75 L 290 80" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--color-accent-orange)"/>
+  <text x="305" y="69" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="currentColor">1 row =</text>
+  <text x="305" y="86" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="700" style="fill:var(--color-accent-orange)">1 order</text>
+  <text x="20" y="125" font-family="Inter, system-ui, sans-serif" font-size="10" fill="currentColor" opacity="0.6">grain = what one row represents</text>
+</svg>

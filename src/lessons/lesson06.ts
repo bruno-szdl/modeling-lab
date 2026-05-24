@@ -5,6 +5,7 @@ import {
   lastQueryContainsRow,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson06.svg?raw'
 
 /**
  * Lesson 6 — Metrics, fan-out, additivity.
@@ -28,6 +29,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson06: Lesson = {
   id: 6,
   title: 'Metrics, fan-out, additivity',
+  schemaSketch: { svg: sketch, alt: 'One payment row × two item rows = two joined rows, each carrying the payment amount $180. Caption: SUM(amount) = $360, not $180 — fan-out double-counts after a finer-grain JOIN' },
   concept: `A **metric** has three parts you commit to *before* writing SQL: a **definition** (in English: "revenue is the sum of paid payment amounts, excluding refunds"), a **formula** (the SUM/COUNT/etc.), and a **grain** (which fact, at what level). Skip any of them and the team will argue about whose number is right.
 
 The trap that ruins more dashboards than any other is **fan-out**. You \`SUM\` a metric *after* a JOIN that duplicated its rows. Each fact row "fans out" once per matching row on the other side — and your SUM silently double-counts.

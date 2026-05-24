@@ -7,6 +7,7 @@ import {
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson03.svg?raw'
 
 /**
  * Lesson 3 — Dimensions.
@@ -28,6 +29,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson03: Lesson = {
   id: 3,
   title: 'Dimensions',
+  schemaSketch: { svg: sketch, alt: 'dim_customers: a small table with a header row (customer_id, customer_name, city, state, signup_year) and a few sample rows. Caption: few rows, many descriptive columns, zero metrics' },
   concept: `A **dimension** table is one row per **entity** — one customer, one product. It carries the descriptive attributes that every report and chart will reach for: name, city, category, price band. By convention, we name it \`dim_*\`.
 
 Three things matter:

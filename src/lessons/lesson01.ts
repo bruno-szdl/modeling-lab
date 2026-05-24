@@ -5,6 +5,7 @@ import {
   lastQueryHasColumns,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson01.svg?raw'
 
 /**
  * Lesson 1 — The grain of a table.
@@ -22,6 +23,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson01: Lesson = {
   id: 1,
   title: 'The grain of a table',
+  schemaSketch: { svg: sketch, alt: 'raw_orders table with three sample rows and an arrow pointing to "1 row = 1 order"' },
   concept: `Every analytics question begins with one question of your own:
 
 > **What does one row in this table represent?**

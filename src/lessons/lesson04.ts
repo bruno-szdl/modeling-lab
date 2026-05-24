@@ -9,6 +9,7 @@ import {
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson04.svg?raw'
 
 /**
  * Lesson 4 — Facts.
@@ -33,6 +34,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson04: Lesson = {
   id: 4,
   title: 'Facts',
+  schemaSketch: { svg: sketch, alt: 'fact_orders on the left (FACT box with order_id, customer_id (FK), order_date, order_status) joined by an FK arrow to dim_customers on the right (DIM box with customer_id (PK), customer_name, city, signup_year)' },
   concept: `A **fact** table is one row per **event** — an order placed, a line item, a payment received. It carries:
 
 - **Foreign keys** to dims (\`customer_id\`, \`product_id\`).

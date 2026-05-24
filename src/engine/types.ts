@@ -67,14 +67,19 @@ export interface FurtherReadingLink {
 }
 
 /**
- * Per-lesson schema sketch shown in the concept area. Either an inline SVG
- * string or a public-asset path. Kept simple on purpose — modeling lessons
- * benefit from a single static picture, not a live graph.
+ * Per-lesson schema sketch shown in the concept area. Kept simple on
+ * purpose — modeling lessons benefit from a single static picture, not a
+ * live graph.
+ *
+ * `svg` is the raw markup of an SVG element. Import each sketch via
+ * `import sketch from '../sketches/lessonN.svg?raw'` so colours can use
+ * `currentColor` and `var(--color-accent-orange)`, inheriting from the
+ * surrounding LessonPanel (and therefore respecting light/dark themes).
  */
 export interface SchemaSketch {
-  /** Inline SVG markup OR a public asset path like '/sketches/grain.svg'. */
-  src: string
-  /** Alt text / caption. */
+  /** Raw inline SVG markup. */
+  svg: string
+  /** Alt text describing what the sketch depicts. */
   alt: string
 }
 

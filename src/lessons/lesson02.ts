@@ -6,6 +6,7 @@ import {
   lastQueryHasColumns,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson02.svg?raw'
 
 /**
  * Lesson 2 — Entities, events, column roles.
@@ -28,6 +29,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson02: Lesson = {
   id: 2,
   title: 'Entities, events, column roles',
+  schemaSketch: { svg: sketch, alt: 'Two boxes side by side: raw_customers (an entity, no date column) and raw_payments (an event, with payment_date highlighted)' },
   concept: `Some tables describe **things that exist** — customers, products. Those are **entities**. Others describe **things that happened** — orders, payments. Those are **events**. A third kind shows up too: tables that describe **details of an event** — the line items on an order. They aren't events themselves, but they only exist because one happened.
 
 A quick heuristic: events have a date. Entities don't.

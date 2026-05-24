@@ -80,9 +80,19 @@ export default function LessonPanel() {
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
           <Markdownish text={lesson.concept} />
           {lesson.schemaSketch && (
-            <div style={{ marginTop: '12px', padding: '8px', background: 'var(--color-base)', border: '1px solid var(--color-border-subtle)', borderRadius: '6px' }}>
-              <img src={lesson.schemaSketch.src} alt={lesson.schemaSketch.alt} style={{ width: '100%', display: 'block' }} />
-            </div>
+            <div
+              role="img"
+              aria-label={lesson.schemaSketch.alt}
+              style={{
+                marginTop: '12px',
+                padding: '10px 12px',
+                background: 'var(--color-base)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: '6px',
+                color: 'var(--color-text-secondary)',
+              }}
+              dangerouslySetInnerHTML={{ __html: lesson.schemaSketch.svg }}
+            />
           )}
           {lesson.dbtBridge && <DbtBridge text={lesson.dbtBridge} />}
         </div>

@@ -7,6 +7,7 @@ import {
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson03b.svg?raw'
 
 /**
  * Lesson 3b — Side quest: dim_date.
@@ -28,6 +29,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson03b: Lesson = {
   id: 3.5,
   title: 'Side quest: dim_date',
+  schemaSketch: { svg: sketch, alt: 'DuckDB generate_series function on the left, an arrow, and the resulting dim_date table on the right with 366 rows' },
   concept: `Calendar attributes — day of the week, month name, quarter, is-holiday — show up in every dashboard but never in your source data. The usual fix is to re-derive them inline (\`EXTRACT(quarter FROM order_date)\`, \`dayname(order_date)\`) in every query. That gets old fast, and any two queries that disagree on the rule (does the fiscal quarter start in February?) silently produce different numbers.
 
 A **date dimension** solves this: compute every calendar attribute *once*, in a table, then JOIN to it whenever a query needs them. The dim is *generated* (no source data), but it's still a dim — it has a grain (one day), a PK (\`date_day\`), and descriptive attributes that facts look up via the key.

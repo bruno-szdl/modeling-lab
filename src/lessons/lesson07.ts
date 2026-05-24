@@ -6,6 +6,7 @@ import {
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
+import sketch from '../sketches/lesson07.svg?raw'
 
 /**
  * Lesson 7 — Build the mart (FINALE).
@@ -35,6 +36,7 @@ import { DATASHOP_SEEDS } from '../seeds'
 const lesson07: Lesson = {
   id: 7,
   title: 'Build the mart',
+  schemaSketch: { svg: sketch, alt: 'Three raw facts (order_items, payments, orders) flow into three pre-aggregated CTEs at month grain, which then merge into a single mart_monthly_sales table with 2 rows' },
   concept: `Everything you've practiced converges here. The mart is the **product**. \`fact_*\` and \`dim_*\` are the *inputs* — designed for engineering correctness. The mart is designed for **answering business questions in one query**: a stakeholder writes \`SELECT * FROM mart_monthly_sales\` and the answer is right there.
 
 Three properties of a good mart:
