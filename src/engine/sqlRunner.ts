@@ -51,11 +51,29 @@ export async function runEditorSql(sql: string): Promise<RunOutcome> {
 
 /**
  * Heuristic: does this single statement return rows we should display?
- * SELECT / WITH / SHOW / DESCRIBE / PRAGMA / CALL — yes. Everything else
- * (CREATE, INSERT, UPDATE, DELETE, DROP, ATTACH, …) — no, just exec.
+ * SELECT / WITH / SHOW / DESCRIBE / PRAGMA / CALL / VALUES — yes.
+ * Everything else (CREATE, INSERT, UPDATE, DELETE, DROP, ATTACH, …) — no.
+ *
+ * Strips leading SQL comments before checking the first keyword. Otherwise
+ * a starter like `-- TODO: …\nSELECT …` would be mis-classified as
+ * "no rows" because the head would start with `--`.
  */
 function isResultProducing(stmt: string): boolean {
-  const head = stmt.replace(/^\s+/, '').slice(0, 12).toUpperCase()
+  let s = stmt.trimStart()
+  while (true) {
+    if (s.startsWith('--')) {
+      const nl = s.indexOf('\n')
+      if (nl === -1) return false
+      s = s.slice(nl + 1).trimStart()
+    } else if (s.startsWith('/*')) {
+      const end = s.indexOf('*/')
+      if (end === -1) return false
+      s = s.slice(end + 2).trimStart()
+    } else {
+      break
+    }
+  }
+  const head = s.slice(0, 12).toUpperCase()
   return (
     head.startsWith('SELECT') ||
     head.startsWith('WITH ') ||

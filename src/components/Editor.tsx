@@ -1,4 +1,5 @@
 import MonacoEditor from '@monaco-editor/react'
+import { useEffect } from 'react'
 import { useGameStore } from '../store/gameStore'
 
 /**
@@ -6,6 +7,18 @@ import { useGameStore } from '../store/gameStore'
  * multi-file editor, every lesson works against ONE SQL document — the
  * learner's scratch space. Each lesson's first SQL step prefills it with
  * starterSql; lessons remount the editor by bumping `editorKey`.
+ *
+ * Run-query wiring (Bruno wants both options):
+ *   1. The Run button always works (button onClick).
+ *   2. Cmd/Ctrl + Enter when focus is INSIDE Monaco fires the editor's
+ *      registered action — `addAction` is more reliable than `addCommand`
+ *      for keybindings; it also stops Monaco from inserting a newline.
+ *   3. Cmd/Ctrl + Enter when focus is OUTSIDE the editor (e.g. on the Run
+ *      button right after clicking it, or on any focusable element in the
+ *      workspace) fires a window-level keydown listener — same handler.
+ *
+ * Both paths funnel into `useGameStore.getState().runQuery()`, which is
+ * guarded by `running` so a double-fire is a no-op.
  */
 export default function Editor() {
   const editorSql = useGameStore((s) => s.editorSql)
@@ -14,6 +27,19 @@ export default function Editor() {
   const running = useGameStore((s) => s.running)
   const theme = useGameStore((s) => s.theme)
   const editorKey = useGameStore((s) => s.editorKey)
+
+  // Window-level fallback so Cmd/Ctrl+Enter works when focus is on the Run
+  // button or anywhere else in the workspace, not just inside Monaco.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        void useGameStore.getState().runQuery()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--color-base)' }}>
@@ -63,10 +89,16 @@ export default function Editor() {
           value={editorSql}
           onChange={(val) => setEditorSql(val ?? '')}
           onMount={(editor, monaco) => {
-            editor.addCommand(
-              monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-              () => void useGameStore.getState().runQuery(),
-            )
+            editor.addAction({
+              id: 'modeling-lab.run-query',
+              label: 'Run SQL query',
+              keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+              contextMenuGroupId: 'navigation',
+              contextMenuOrder: 1,
+              run: () => {
+                void useGameStore.getState().runQuery()
+              },
+            })
             editor.focus()
           }}
           options={{
