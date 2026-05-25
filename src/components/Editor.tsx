@@ -30,15 +30,21 @@ export default function Editor() {
 
   // Window-level fallback so Cmd/Ctrl+Enter works when focus is on the Run
   // button or anywhere else in the workspace, not just inside Monaco.
+  //
+  // CAPTURE PHASE (third arg = true) is required: Monaco may call
+  // stopPropagation() on keys it has bound, so a normal bubble-phase
+  // listener never sees the event. Capture fires before descendants,
+  // bypassing that.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault()
+        e.stopPropagation()
         void useGameStore.getState().runQuery()
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [])
 
   return (
@@ -89,6 +95,9 @@ export default function Editor() {
           value={editorSql}
           onChange={(val) => setEditorSql(val ?? '')}
           onMount={(editor, monaco) => {
+            // Belt: Monaco action with the Cmd+Enter keybinding. Prevents
+            // Monaco's default "insert newline" and shows up in the
+            // command palette + right-click menu.
             editor.addAction({
               id: 'modeling-lab.run-query',
               label: 'Run SQL query',
@@ -98,6 +107,17 @@ export default function Editor() {
               run: () => {
                 void useGameStore.getState().runQuery()
               },
+            })
+            // Suspenders: raw onKeyDown handler on the editor itself.
+            // Uses the underlying browser event's `key` (string), which is
+            // the most reliable cross-platform check. Catches the
+            // shortcut even if the action binding misbehaves.
+            editor.onKeyDown((e) => {
+              if ((e.metaKey || e.ctrlKey) && e.browserEvent.key === 'Enter') {
+                e.preventDefault()
+                e.stopPropagation()
+                void useGameStore.getState().runQuery()
+              }
             })
             editor.focus()
           }}
