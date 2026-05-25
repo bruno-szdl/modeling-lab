@@ -92,8 +92,6 @@ Why does this matter? It's the mental map for the next three lessons: **entity â
       id: 'distinct-statuses',
       prompt: `Time to classify column *roles*. List every distinct value of \`payment_status\` in \`raw_payments\`. You should see exactly 3.`,
       starterSql: `SELECT DISTINCT payment_status FROM raw_payments;`,
-      hint: `\`SELECT DISTINCT col FROM table\` â€” that's the whole query.`,
-      solution: `SELECT DISTINCT payment_status FROM raw_payments;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
         lastQueryHasColumns(s, ['payment_status']) &&

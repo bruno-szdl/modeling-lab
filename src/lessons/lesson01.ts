@@ -29,7 +29,7 @@ const lesson01: Lesson = {
   title: 'The grain of a table',
   schemaSketch: {
     svg: sketch,
-    alt: 'A three-table reference for lesson 1: raw_orders (6 rows, 1 row = 1 order), raw_order_items (9 rows, 1 row = 1 line item), and raw_payments (7 rows, 1 row = 1 payment).',
+    alt: 'The full raw_orders table — six rows (O001 through O006) with order_id, customer_id, order_date, and order_status columns — with an arrow pointing up at the table asking "what does one row represent?"',
   },
   concept: `Every analytics question begins with one question of your own:
 
@@ -37,7 +37,9 @@ const lesson01: Lesson = {
 
 That answer is the **grain**. Get it wrong and your numbers will quietly drift — you'll count orders when you meant items, or sum revenue twice.
 
-In this lesson you'll inspect three tables of the DataShop e-commerce dataset, find the grain of each, and learn the one objective test that proves a column is a **primary key**: \`COUNT(*) = COUNT(DISTINCT key)\`.`,
+Look at \`raw_orders\` shown below — six rows, four columns. Before you read on, can you answer the question for *this* table? "One row in \`raw_orders\` represents…?"
+
+You'll work through three tables this lesson — \`raw_orders\`, then \`raw_order_items\`, then \`raw_payments\` — and learn the one objective test that proves a column is a **primary key**: \`COUNT(*) = COUNT(DISTINCT key)\`.`,
   dbtBridge: `What you'll write below — \`COUNT(*) = COUNT(DISTINCT key)\` — is the operational definition of a primary key, and it's the same idea dbt formalizes as a \`unique\` test. dbt ships four such tests by convention: **\`not_null\`**, **\`unique\`**, **\`accepted_values\`**, and **\`relationships\`**, all declared in YAML. We don't dwell on them in this lab — testing is a discipline of its own and [transform-lab](https://transform-lab.datagym.io) is where you meet them properly.`,
   seeds: DATASHOP_SEEDS,
   steps: [
@@ -54,12 +56,13 @@ In this lesson you'll inspect three tables of the DataShop e-commerce dataset, f
     {
       kind: 'sql',
       id: 'prove-orders-pk',
-      prompt: `Prove that \`order_id\` is the primary key of \`raw_orders\`. Write a single \`SELECT\` that returns two numbers: the total row count and the count of distinct \`order_id\` values. If they're equal, \`order_id\` is unique — combined with not-null, that's a PK.`,
-      starterSql: `SELECT
-    COUNT(*)                 AS total_rows,
-    COUNT(DISTINCT order_id) AS distinct_order_ids
+      prompt: `Prove that \`order_id\` is the primary key of \`raw_orders\`. Write a single \`SELECT\` that returns two numbers in one row: the total row count and the count of distinct \`order_id\` values. If they're equal, \`order_id\` is unique — combined with not-null, that's a PK.`,
+      starterSql: `-- Goal: return two columns in one row — total_rows and distinct_order_ids.
+SELECT
+    COUNT(*) AS total_rows
+    -- TODO: add another column for the count of distinct order_id values
 FROM raw_orders;`,
-      hint: `\`COUNT(*) = COUNT(DISTINCT col)\` is the test. If they're equal, the column is unique.`,
+      hint: `Add \`COUNT(DISTINCT order_id) AS distinct_order_ids\` after the first column (don't forget the comma).`,
       solution: `SELECT
     COUNT(*)                 AS total_rows,
     COUNT(DISTINCT order_id) AS distinct_order_ids
@@ -109,12 +112,14 @@ FROM raw_orders;`,
       kind: 'sql',
       id: 'prove-payments-grain',
       prompt: `Run the same kind of grain check you did on \`raw_orders\`, but include a third count: distinct \`order_id\`. If two of the three numbers match and one doesn't — that's the story.`,
-      starterSql: `SELECT
-    COUNT(*)                   AS total_rows,
-    COUNT(DISTINCT payment_id) AS distinct_payment_ids,
-    COUNT(DISTINCT order_id)   AS distinct_orders
+      starterSql: `-- Goal: return three columns in one row — total_rows,
+-- distinct_payment_ids, and distinct_orders.
+SELECT
+    COUNT(*) AS total_rows
+    -- TODO: add COUNT(DISTINCT payment_id) AS distinct_payment_ids
+    -- TODO: add COUNT(DISTINCT order_id)   AS distinct_orders
 FROM raw_payments;`,
-      hint: `Three \`COUNT\` columns in a single \`SELECT\` — total rows, distinct payments, distinct orders.`,
+      hint: `Add two more columns after \`total_rows\` (commas matter): \`COUNT(DISTINCT payment_id) AS distinct_payment_ids\` and \`COUNT(DISTINCT order_id) AS distinct_orders\`.`,
       solution: `SELECT
     COUNT(*)                   AS total_rows,
     COUNT(DISTINCT payment_id) AS distinct_payment_ids,
