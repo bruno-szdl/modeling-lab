@@ -84,17 +84,16 @@ export default function LessonPanel() {
               role="img"
               aria-label={lesson.schemaSketch.alt}
               style={{
-                marginTop: '12px',
-                padding: '10px 12px',
+                marginTop: '14px',
+                padding: '14px 16px',
                 background: 'var(--color-base)',
                 border: '1px solid var(--color-border-subtle)',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 color: 'var(--color-text-secondary)',
               }}
               dangerouslySetInnerHTML={{ __html: lesson.schemaSketch.svg }}
             />
           )}
-          {lesson.dbtBridge && <DbtBridge text={lesson.dbtBridge} />}
         </div>
 
         {/* Steps */}
@@ -116,6 +115,16 @@ export default function LessonPanel() {
                 onAnswerCheckpoint={(opt) => answerCheckpoint(step.id, opt)}
               />
             ))}
+          </div>
+        )}
+
+        {/* dbt-bridge aside — after the work, never inside the main narrative.
+            It's an optional connection to dbt for learners who want it, not
+            something a learner has to read to understand the lesson. */}
+        {lesson.dbtBridge && (
+          <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border-subtle)' }}>
+            <SectionLabel>If you go on to dbt</SectionLabel>
+            <DbtBridge text={lesson.dbtBridge} />
           </div>
         )}
 
