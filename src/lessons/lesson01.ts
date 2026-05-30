@@ -40,7 +40,7 @@ That answer is the **grain**. Get it wrong and your numbers will quietly drift �
 Look at \`raw_orders\` shown below — six rows, four columns. Before you read on, can you answer the question for *this* table? "One row in \`raw_orders\` represents…?"
 
 You'll work through three tables this lesson — \`raw_orders\`, then \`raw_order_items\`, then \`raw_payments\` — and learn the one objective test that proves a column is a **primary key**: \`COUNT(*) = COUNT(DISTINCT key)\`.`,
-  dbtBridge: `What you'll write below — \`COUNT(*) = COUNT(DISTINCT key)\` — is the operational definition of a primary key, and it's the same idea dbt formalizes as a \`unique\` test. dbt ships four such tests by convention: **\`not_null\`**, **\`unique\`**, **\`accepted_values\`**, and **\`relationships\`**, all declared in YAML. We don't dwell on them in this lab — testing is a discipline of its own and [transform-lab](https://transform-lab.datagym.io) is where you meet them properly.`,
+  dbtBridge: `dbt's \`unique\` test checks this same property, just phrased as "no key appears twice" (\`GROUP BY key HAVING COUNT(*) > 1\` must return zero rows) — [data transformation lab](https://transform-lab.datagym.io) is where you meet it properly.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     // ── raw_orders ──────────────────────────────────────────────────────────
@@ -71,7 +71,9 @@ FROM raw_orders;`,
         lastQuerySucceeded(s) &&
         lastQueryHasColumns(s, ['total_rows', 'distinct_order_ids']) &&
         lastQueryRowHasValue(s, 'total_rows', 6, 'distinct_order_ids', 6),
-      explanation: `Both are **6** — they match, so \`order_id\` is unique across all rows. Combined with not-null (an \`order_id\` always exists for an order), that's the operational definition of a primary key. The grain of \`raw_orders\` is confirmed: **one row = one order.**`,
+      explanation: `Both are **6** — they match, so \`order_id\` is unique across all rows. Combined with not-null (an \`order_id\` always exists for an order), that's the operational definition of a primary key. The grain of \`raw_orders\` is confirmed: **one row = one order.**
+
+One caveat worth keeping: passing this test makes a column a *candidate* key — uniqueness is **necessary, not sufficient.** A column can be unique by accident (if every \`amount\` in some table happens to differ today, that doesn't make \`amount\` a key — one more row could collide tomorrow). A real primary key is the column whose *job* is to identify the row: stable, meaningful, and unique **by design**, not by coincidence.`,
     },
 
     // ── raw_order_items ─────────────────────────────────────────────────────
@@ -158,7 +160,7 @@ HAVING COUNT(*) > 1;`,
       options: [
         '`raw_order_items` — sum its row count, since each item is part of an order',
         '`raw_orders` — count its rows, since the grain is one row per order',
-        '`raw_payments` — count distinct \`order_id\`, since every order gets paid',
+        '`raw_payments` — count distinct `order_id`, since every order gets paid',
         'Either, they all give the same number',
       ],
       correctIndex: 1,
@@ -166,7 +168,7 @@ HAVING COUNT(*) > 1;`,
     },
   ],
   furtherReading: [
-    { label: 'Kimball: declaring the grain', url: 'https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/declare-the-grain/' },
+    { label: 'Kimball: declaring the grain', url: 'https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/grain/' },
   ],
 }
 

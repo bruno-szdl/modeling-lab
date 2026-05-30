@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { getLessonById, getLastLessonId, stepKey } from '../lessons'
 import type { Step, SqlStep, CheckpointStep } from '../engine/types'
@@ -177,9 +177,12 @@ export default function LessonPanel() {
 }
 
 function nextLessonId(current: number): number {
-  // Skip 3b (id 3.5) when stepping forward unless we're already there.
-  if (current === 3) return 3.5
-  if (current === 3.5) return 4
+  // Side quests sit in the forward "Next lesson" flow but carry fractional
+  // ids: 2.5 (the staging layer, after L2) and 5.5 (dim_date, after L5).
+  if (current === 2) return 2.5
+  if (current === 2.5) return 3
+  if (current === 5) return 5.5
+  if (current === 5.5) return 6
   return current + 1
 }
 
@@ -326,6 +329,15 @@ function CheckpointBody({
   passedCorrect: boolean
   onAnswer: (opt: number) => boolean
 }) {
+  // Options the learner picked that were wrong — turned red so a miss isn't
+  // silent. Buttons stay live (until a correct pick), so they can try again.
+  const [wrongPicks, setWrongPicks] = useState<Set<number>>(new Set())
+
+  const handleAnswer = (i: number) => {
+    const correct = onAnswer(i)
+    if (!correct) setWrongPicks((prev) => new Set(prev).add(i))
+  }
+
   return (
     <>
       <div style={{ color: 'var(--color-text)', fontSize: '0.875rem', fontFamily: 'var(--font-sans)', lineHeight: 1.55, marginBottom: '8px' }}>
@@ -335,16 +347,19 @@ function CheckpointBody({
         {step.options.map((opt, i) => {
           const isCorrect = i === step.correctIndex
           const showRight = completed && isCorrect
+          const showWrong = !completed && wrongPicks.has(i)
+          const bg = showRight ? 'var(--color-success-bg)' : showWrong ? 'var(--color-fail-bg)' : 'transparent'
+          const borderColor = showRight ? 'var(--color-success)' : showWrong ? 'var(--color-fail-border)' : 'var(--color-border)'
           return (
             <button
               key={i}
               disabled={passedCorrect}
-              onClick={() => onAnswer(i)}
+              onClick={() => handleAnswer(i)}
               style={{
                 textAlign: 'left',
                 padding: '8px 10px',
-                background: showRight ? 'var(--color-success-bg)' : 'transparent',
-                border: `1px solid ${showRight ? 'var(--color-success)' : 'var(--color-border)'}`,
+                background: bg,
+                border: `1px solid ${borderColor}`,
                 borderRadius: '5px',
                 color: 'var(--color-text)',
                 fontSize: '0.75rem',

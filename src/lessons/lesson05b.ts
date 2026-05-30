@@ -7,34 +7,40 @@ import {
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
-import sketch from '../sketches/lesson03b.svg?raw'
+import sketch from '../sketches/lesson05b.svg?raw'
 
 /**
- * Lesson 3b — Side quest: dim_date.
+ * Lesson 5b — Side quest: dim_date.
  *
  * Optional. Maps to notebook 03b. Lighter than core lessons (4 steps).
- * The unique payoff: a generated calendar dimension demonstrates that
+ * Sits after L5 (joins) so its closing calendar-spine LEFT JOIN *applies*
+ * the LEFT JOIN taught there, rather than previewing it. Still placed before
+ * L7 so the monthly mart can refer back to "the calendar spine from the side
+ * quest". The unique payoff: a generated calendar dimension demonstrates that
  * "dimension" is a ROLE (context for facts) — not a statement about where
- * the data came from. Sets up the "every day shows up even with zero
- * sales" LEFT-JOIN-from-calendar pattern.
+ * the data came from. The closing step delivers the "every day shows up
+ * even with zero sales" calendar-spine LEFT JOIN.
  *
  * Expected results:
  *   2024 dim_date row count = 366 (leap year)
- *   Paid revenue by day_name:
- *     Monday    280 (PAY004)
- *     Wednesday 320 (PAY005 + PAY006)
- *     Friday    180 (PAY001)
- *     Saturday  280 (PAY002)
+ *   Daily paid revenue, LEFT JOIN dim_date -> raw_payments, 2024-04-01..07:
+ *     Mon 2024-04-01  280 (PAY004)
+ *     Tue 2024-04-02    0 (no sale — but the day still appears)
+ *     Wed 2024-04-03  120 (PAY005)
+ *     Thu 2024-04-04    0
+ *     Fri 2024-04-05    0
+ *     Sat 2024-04-06    0
+ *     Sun 2024-04-07    0
  */
-const lesson03b: Lesson = {
-  id: 3.5,
+const lesson05b: Lesson = {
+  id: 5.5,
   title: 'Side quest: dim_date',
   schemaSketch: { svg: sketch, alt: 'DuckDB generate_series function on the left, an arrow, and the resulting dim_date table on the right with 366 rows' },
   concept: `Calendar attributes — day of the week, month name, quarter, is-holiday — show up in every dashboard but never in your source data. The usual fix is to re-derive them inline (\`EXTRACT(quarter FROM order_date)\`, \`dayname(order_date)\`) in every query. That gets old fast, and any two queries that disagree on the rule (does the fiscal quarter start in February?) silently produce different numbers.
 
 A **date dimension** solves this: compute every calendar attribute *once*, in a table, then JOIN to it whenever a query needs them. The dim is *generated* (no source data), but it's still a dim — it has a grain (one day), a PK (\`date_day\`), and descriptive attributes that facts look up via the key.
 
-This is an **optional side quest.** Skip it and the main lab works fine; come back when you want the "join from a calendar so empty days still show up" pattern.`,
+This is an **optional side quest** — skip it and the main lab still works — but it ends on the pattern every dashboard secretly leans on: joining *from* a calendar so days with zero activity still appear instead of vanishing from the report.`,
   dbtBridge: `Packages like \`dbt_utils\` and \`dbt_date\` ship \`date_spine()\` macros that generate exactly this. You're learning what those macros emit so you can read, debug, and customize them.`,
   seeds: DATASHOP_SEEDS,
   steps: [
@@ -88,21 +94,22 @@ SELECT * FROM dim_date WHERE date_day = DATE '2024-03-02';`,
     {
       kind: 'sql',
       id: 'use-dim-date',
-      prompt: `Now use \`dim_date\` for an actual analytics question: **paid revenue grouped by day of the week.** JOIN \`raw_payments\` to \`dim_date\` on the date key, filter to paid, group by \`day_name\`. Without the dim, you'd \`EXTRACT(dow ...)\` and \`CASE WHEN ...\` inline; with it, you just \`GROUP BY d.day_name\`.`,
+      prompt: `Now the payoff the calendar dim was built for: **a daily revenue report where days with zero sales still show up.** Take the first week of April and \`LEFT JOIN\` *from* \`dim_date\` to \`raw_payments\` — the calendar is the spine, so every day appears whether or not a payment landed on it. (This is the \`LEFT JOIN\` from lesson 5, now anchored on a calendar so it keeps every day instead of every customer.)`,
       starterSql: `SELECT
+    d.date_day,
     d.day_name,
-    SUM(p.amount) AS paid_revenue
-FROM raw_payments p
-JOIN dim_date d ON p.payment_date = d.date_day
-WHERE p.payment_status = 'paid'
-GROUP BY d.day_name
-ORDER BY paid_revenue DESC;`,
+    COALESCE(SUM(CASE WHEN p.payment_status = 'paid' THEN p.amount END), 0) AS paid_revenue
+FROM dim_date d
+LEFT JOIN raw_payments p ON p.payment_date = d.date_day
+WHERE d.date_day BETWEEN DATE '2024-04-01' AND DATE '2024-04-07'
+GROUP BY d.date_day, d.day_name
+ORDER BY d.date_day;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryRowCountEquals(s, 4) &&
-        lastQueryContainsRow(s, { day_name: 'Wednesday', paid_revenue: 320 }) &&
-        lastQueryContainsRow(s, { day_name: 'Monday', paid_revenue: 280 }),
-      explanation: `**Wednesday 320, Monday 280, Saturday 280, Friday 180.** Wednesday wins (PAY005 + PAY006). Notice how clean the query is — no \`EXTRACT\` clutter, no inline \`CASE\` for day-of-week. The dim absorbed all that. And the same pattern scales: add a holiday column to \`dim_date\`, and *every* report can suddenly filter "non-holiday days" with one JOIN.`,
+        lastQueryRowCountEquals(s, 7) &&
+        lastQueryContainsRow(s, { day_name: 'Monday', paid_revenue: 280 }) &&
+        lastQueryContainsRow(s, { day_name: 'Tuesday', paid_revenue: 0 }),
+      explanation: `**Seven rows for seven days — even though only two of them had a sale.** Monday 280 (PAY004) and Wednesday 120 (PAY005); the other five days come back as 0, not missing. That's the whole point of a calendar spine: the dim supplies the days, the \`LEFT JOIN\` keeps every one of them, and \`COALESCE\` turns the no-match NULLs into clean zeros. Without the spine you'd \`GROUP BY payment_date\` and the empty days would simply vanish — a line chart with holes in it. (Bonus: the query is clean, too — \`day_name\` came from the dim, so no inline \`EXTRACT\`/\`CASE\` for the calendar attributes.)`,
     },
     {
       kind: 'checkpoint',
@@ -120,4 +127,4 @@ ORDER BY paid_revenue DESC;`,
   ],
 }
 
-export default lesson03b
+export default lesson05b

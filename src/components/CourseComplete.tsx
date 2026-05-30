@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { runQuery } from '../engine/duckdb'
 
+type Preview = { columns: string[]; rows: unknown[][] }
+
 /**
- * The mart finale. Shown when lesson 8's last step completes. Previews the
- * actual `mart_monthly_sales` the learner just built (or a sentinel if they
- * skipped ahead) and surfaces two CTAs:
+ * The mart finale. Shown when the last lesson's final step completes. Previews
+ * both marts the learner ends up with — `mart_monthly_sales` (sliced by time,
+ * built in L7 and pre-materialized in L8) and `mart_sales_by_category` (sliced
+ * by an attribute, built in L8) — to make the "one star, two questions" point
+ * concrete. Surfaces two CTAs:
  *
  *   primary    → Build it in dbt: transform-lab.datagym.io
  *   secondary  → More modeling content: datagym.io/topics/data-modeling
@@ -14,7 +18,8 @@ import { runQuery } from '../engine/duckdb'
  */
 export default function CourseComplete() {
   const loadLesson = useGameStore((s) => s.loadLesson)
-  const [martPreview, setMartPreview] = useState<{ columns: string[]; rows: unknown[][] } | null>(null)
+  const [martPreview, setMartPreview] = useState<Preview | null>(null)
+  const [categoryPreview, setCategoryPreview] = useState<Preview | null>(null)
   const [confetti] = useState(() => {
     const palette = ['var(--color-accent-orange)', 'var(--color-success)', 'var(--color-warning)']
     return Array.from({ length: 22 }, (_, i) => ({
@@ -29,6 +34,9 @@ export default function CourseComplete() {
     runQuery(`SELECT * FROM mart_monthly_sales ORDER BY 1`)
       .then((r) => setMartPreview({ columns: r.columns, rows: r.rows }))
       .catch(() => setMartPreview(null))
+    runQuery(`SELECT * FROM mart_sales_by_category ORDER BY gross_sales DESC`)
+      .then((r) => setCategoryPreview({ columns: r.columns, rows: r.rows }))
+      .catch(() => setCategoryPreview(null))
   }, [])
 
   return (
@@ -71,53 +79,23 @@ export default function CourseComplete() {
         margin: '0 0 10px', color: 'var(--color-text)', fontFamily: 'var(--font-sans)',
         fontSize: '1.0625rem', fontWeight: 700, lineHeight: 1.3,
       }}>
-        Your analytics mart
+        One star, two questions
       </h3>
       <p style={{
         margin: '0 0 14px', color: 'var(--color-text-secondary)',
         fontSize: '0.875rem', lineHeight: 1.6,
       }}>
-        Two rows. One per month. Every decision you made — choosing a grain, classifying columns,
-        designing dims and facts, aggregating each fact before the join — converges into this.
-        This is what a business user actually queries.
+        The same dims and facts you modeled answer both of these — sliced by time, and sliced by an
+        attribute — with no remodeling between them. Choosing a grain, classifying columns, building
+        dims and facts, joining without breaking grain: it all converges into marts a business user
+        queries in one line.
       </p>
 
       {martPreview && martPreview.rows.length > 0 && (
-        <div style={{ marginBottom: '14px', overflowX: 'auto' }}>
-          <table style={{
-            borderCollapse: 'collapse', width: '100%',
-            fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem',
-          }}>
-            <thead>
-              <tr>
-                {martPreview.columns.map((c) => (
-                  <th key={c} style={{
-                    textAlign: 'left', padding: '6px 10px',
-                    background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)',
-                    color: 'var(--color-text-muted)', fontWeight: 500,
-                    fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em',
-                  }}>
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {martPreview.rows.map((row, ri) => (
-                <tr key={ri}>
-                  {row.map((cell, ci) => (
-                    <td key={ci} style={{
-                      padding: '5px 10px', borderBottom: '1px solid var(--color-border-subtle)',
-                      color: cell == null ? 'var(--color-muted)' : 'var(--color-text)',
-                    }}>
-                      {cell == null ? 'NULL' : String(cell)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <MartTable label="mart_monthly_sales · by time" preview={martPreview} />
+      )}
+      {categoryPreview && categoryPreview.rows.length > 0 && (
+        <MartTable label="mart_sales_by_category · by attribute" preview={categoryPreview} />
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -130,7 +108,7 @@ export default function CourseComplete() {
             justifyContent: 'center',
           }}
         >
-          Next: build it in dbt → transform-lab
+          Next: build it in dbt → data transformation lab
         </a>
         <a
           href="https://datagym.io/topics/data-modeling"
@@ -156,6 +134,52 @@ export default function CourseComplete() {
           Back to intro
         </button>
       </div>
+    </div>
+  )
+}
+
+function MartTable({ label, preview }: { label: string; preview: Preview }) {
+  return (
+    <div style={{ marginBottom: '14px', overflowX: 'auto' }}>
+      <div style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '0.625rem',
+        color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: '5px',
+      }}>
+        {label}
+      </div>
+      <table style={{
+        borderCollapse: 'collapse', width: '100%',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem',
+      }}>
+        <thead>
+          <tr>
+            {preview.columns.map((c) => (
+              <th key={c} style={{
+                textAlign: 'left', padding: '6px 10px',
+                background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)',
+                color: 'var(--color-text-muted)', fontWeight: 500,
+                fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em',
+              }}>
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {preview.rows.map((row, ri) => (
+            <tr key={ri}>
+              {row.map((cell, ci) => (
+                <td key={ci} style={{
+                  padding: '5px 10px', borderBottom: '1px solid var(--color-border-subtle)',
+                  color: cell == null ? 'var(--color-muted)' : 'var(--color-text)',
+                }}>
+                  {cell == null ? 'NULL' : String(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

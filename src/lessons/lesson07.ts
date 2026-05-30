@@ -9,20 +9,19 @@ import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson07.svg?raw'
 
 /**
- * Lesson 7 — Build the mart (FINALE).
+ * Lesson 7 — Build the mart (the monthly mart).
  *
- * Maps to notebook 06. The destination of the whole lab. Each fact is
+ * Maps to notebook 06. The first of the two marts. Each fact is
  * aggregated at month grain in its own CTE; the rolled-up CTEs are joined
  * on the month key. No fan-out because nothing is at a finer grain at the
- * join — the L6 lesson, applied.
+ * join — the L6 lesson, applied. (The finale screen, <CourseComplete />,
+ * is triggered by L8, not here — L8 is the last lesson and pre-materializes
+ * this mart so both marts can be shown side by side.)
  *
  * Expected mart shape (mart_monthly_sales, 2 rows):
  *   month   | gross_sales | paid_revenue | paid_orders | refunded_amount | delivered_orders | cancelled_orders | refunded_orders
  *   2024-03 |     460     |     460      |      2      |        0        |        2         |        1         |        0
  *   2024-04 |     600     |     600      |      3      |       200       |        2         |        0         |        1
- *
- * The completion of every step in this lesson triggers <CourseComplete />,
- * which fetches mart_monthly_sales and renders it as the celebration card.
  *
  * Critical fan-out check: paid_orders is COUNT DISTINCT order_id WHERE
  * status='paid' in fact_payments. Two paid orders in March (PAY001/O001,
@@ -37,7 +36,7 @@ const lesson07: Lesson = {
   id: 7,
   title: 'Build the mart',
   schemaSketch: { svg: sketch, alt: 'Three raw facts (order_items, payments, orders) flow into three pre-aggregated CTEs at month grain, which then merge into a single mart_monthly_sales table with 2 rows' },
-  concept: `Everything you've practiced converges here. The mart is the **product**. \`fact_*\` and \`dim_*\` are the *inputs* — designed for engineering correctness. The mart is designed for **answering business questions in one query**: a stakeholder writes \`SELECT * FROM mart_monthly_sales\` and the answer is right there.
+  concept: `Everything you've practiced converges here — this is the top of the layering you've been climbing: \`raw → models (dims + facts) → mart\`. The mart is the **product**. The \`fact_*\` and \`dim_*\` model layer holds the *inputs* — designed for engineering correctness. The mart is designed for **answering business questions in one query**: a stakeholder writes \`SELECT * FROM mart_monthly_sales\` and the answer is right there.
 
 Three properties of a good mart:
 
@@ -46,7 +45,7 @@ Three properties of a good mart:
 3. **Ingredients of ratios, not the ratios themselves.** Store \`paid_revenue\` and \`paid_orders\`; let consumers recompute AOV at whatever grouping they want. (Lesson 6's discipline, made concrete.)
 
 Build strategy: **aggregate each fact at the mart's grain first, then join the rolled-up tables.** This is the only fan-out-proof shape for combining multiple facts. You'll build three CTEs (one per fact: items, payments, orders), each pre-aggregated to month grain, then \`LEFT JOIN\` them on \`month\`.`,
-  dbtBridge: `Marts live at \`models/marts/*.sql\` in a dbt project. One model per business question — \`mart_monthly_sales.sql\`, \`mart_customer_360.sql\`. The convention is to materialize them as \`table\` (not \`view\`), so a BI dashboard reads a pre-computed snapshot rather than re-running the whole CTE graph on every refresh. Tests pin the grain (\`unique\` on the grain key), and a \`relationships\` test on any FK keeps the mart honest as upstream evolves.`,
+  dbtBridge: `Heads up on vocabulary: dbt's \`marts/\` folder is broader than this lab's word "mart" — your \`dim_*\` and \`fact_*\` models live there too. We've reserved "mart" for the final aggregated table a stakeholder queries; dbt would call this one a *report* or *aggregate* mart and keep it alongside the dims and facts. Either way it's materialized as a \`table\`, so a dashboard reads a pre-computed snapshot instead of re-running the whole CTE graph on every refresh.`,
   seeds: DATASHOP_SEEDS,
   // L4 built these; L7 aggregates them at month grain.
   preMaterialize: [
@@ -77,7 +76,7 @@ ORDER BY month;`,
         lastQueryRowCountEquals(s, 2) &&
         lastQueryContainsRow(s, { month: '2024-03', gross_sales: 460 }) &&
         lastQueryContainsRow(s, { month: '2024-04', gross_sales: 600 }),
-      explanation: `**March 460, April 600** — gross sales per month, at the right grain (one row per month), with cancelled orders excluded. This is the first CTE of the mart. Note the JOIN to \`fact_orders\` is purely to filter; it doesn't change the grain because we're grouping by the month.`,
+      explanation: `**March 460, April 600** — gross sales per month, at the right grain (one row per month), with cancelled orders excluded. This is the first CTE of the mart. Note the JOIN to \`fact_orders\` is purely to filter; it doesn't change the grain because we're grouping by the month. (We derive \`month\` inline with \`strftime\` here. When a report needs richer calendar attributes — quarter, weekday — or has to show months with *zero* activity, you'd join \`dim_date\` instead: the calendar spine from the side quest. Inline is fine when every period already has data, as it does here.)`,
     },
     {
       kind: 'sql',
@@ -217,11 +216,11 @@ SELECT * FROM mart_monthly_sales ORDER BY month;`,
       options: [
         'Average the two monthly AOVs together: ((460/2) + (600/3)) / 2 = 215',
         'Sum the monthly revenues, sum the monthly order counts, then divide: SUM(paid_revenue) / SUM(paid_orders) = 1060 / 5 = 212',
-        'The mart can\'t answer this — go back to \`fact_payments\`',
+        'The mart can\'t answer this — go back to `fact_payments`',
         'Take the larger of the two monthly AOVs (230) as a conservative estimate',
       ],
       correctIndex: 1,
-      explanation: `**1060 / 5 = 212.** Averaging the monthly AOVs gives 215 — wrong, because AOV is a *ratio* and ratios are **non-additive**. The mart stores the ingredients (\`paid_revenue\` and \`paid_orders\`); any consumer recomputes the ratio at any grouping they need. This is exactly why we kept AOV *out* of the mart in the first place. And it's exactly why this is the last lesson: every discipline — grain, classification, join safety, additivity — converges into a single mart that any stakeholder can query in one line.`,
+      explanation: `**1060 / 5 = 212.** Averaging the monthly AOVs gives 215 — wrong, because AOV is a *ratio* and ratios are **non-additive**. The mart stores the ingredients (\`paid_revenue\` and \`paid_orders\`); any consumer recomputes the ratio at any grouping they need. This is exactly why we kept AOV *out* of the mart in the first place. Every discipline — grain, classification, join safety, additivity — converges into a mart any stakeholder can query in one line. One thing is still missing, though: this mart only slices by *time*. The last lesson puts the dims you built to work, slicing the same facts by any attribute you like.`,
     },
   ],
 }

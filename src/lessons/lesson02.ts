@@ -35,12 +35,13 @@ const lesson02: Lesson = {
 A quick heuristic: events have a date. Entities don't.
 
 Inside each table, every column plays one of three roles:
+
 - **Identifier** (PK or FK) — links rows together: \`customer_id\`, \`order_id\`.
 - **Descriptive attribute** — tells you *about* the row: \`customer_name\`, \`payment_status\`. You group by it, filter by it; you never \`SUM\` it.
 - **Metric** — something you measure: \`quantity\`, \`amount\`. You aggregate it.
 
 Why does this matter? It's the mental map for the next three lessons: **entity → dim, event → fact, attribute → dim column, metric → fact column.**`,
-  dbtBridge: `Column role drives which test you write in dbt: \`unique\` + \`not_null\` on identifiers, \`accepted_values\` on categorical attributes, \`relationships\` on foreign keys. Metrics are usually tested at the aggregated level (a singular test), not row-by-row.`,
+  dbtBridge: `In dbt, a column's role picks its test: \`unique\`/\`not_null\` on identifiers, \`accepted_values\` on categorical attributes, \`relationships\` on foreign keys.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
@@ -64,7 +65,7 @@ Why does this matter? It's the mental map for the next three lessons: **entity �
     {
       kind: 'checkpoint',
       id: 'classify-order-items',
-      question: `\`raw_order_items\` has 9 rows. There's no \`item_date\` column — but there *is* an \`order_id\`. What is this table?`,
+      question: `In Lesson 1 you proved one row of \`raw_order_items\` is a **line item** — one (order, product) pair, with no date of its own. It carries an \`order_id\` but no \`item_date\`. Which of the three categories does that make it?`,
       options: [
         'An entity, like a catalog of all items that could be sold',
         'An event, because items get sold over time',
@@ -80,7 +81,7 @@ Why does this matter? It's the mental map for the next three lessons: **entity �
       question: `Back to \`raw_customers\`: \`signup_date\` is a date column. So is the table actually an event, not an entity?`,
       options: [
         'Yes — anything with a date is an event',
-        'No — \`signup_date\` is a descriptive attribute of the customer, like their name or city; it just happens to be a date',
+        'No — `signup_date` is a descriptive attribute of the customer, like their name or city; it just happens to be a date',
         'Half-and-half — it\'s an entity with an event mixed in',
         'It depends on whether the signup is more recent than the order',
       ],
@@ -102,17 +103,31 @@ Why does this matter? It's the mental map for the next three lessons: **entity �
       explanation: `Three values: \`paid\`, \`refunded\`, \`failed\`. A column with a small, closed set of text values is **categorical** — and categorical columns are descriptive attributes. You group by them, you filter on them, you never \`SUM\` them. That's the test for "attribute" in one sentence.`,
     },
     {
-      kind: 'checkpoint',
-      id: 'find-the-metric',
-      question: `Looking at \`raw_payments\`, which column is the **metric** (the one you'd actually \`SUM\`)?`,
-      options: [
-        '`payment_id` — it\'s a number, so you can sum it',
-        '`payment_status` — you can count rows per status, so it\'s a measurement',
-        '`amount` — money paid; sums into total revenue',
-        '`payment_date` — dates can be averaged',
-      ],
-      correctIndex: 2,
-      explanation: `\`amount\` is the only column that makes sense to aggregate: \`SUM(amount)\` is paid revenue, \`AVG(amount)\` is the average payment size. \`payment_id\` is a *number* but summing IDs is meaningless. \`payment_status\` is categorical — counting per status is fine, but the column itself isn't a metric. \`payment_date\` is a *when*, not a *how much*. The mental rule: **a metric is what you'd put on the y-axis of a chart.**`,
+      kind: 'sql',
+      id: 'sum-the-metric',
+      prompt: `Last one: prove which column is the **metric** by actually using it. Group \`raw_payments\` by \`payment_status\` (the attribute) and \`SUM\` the \`amount\` (the metric) — one row per status, with a count and a total. Mentally swap \`amount\` for \`payment_id\` as you write it: \`SUM(payment_id)\` would be gibberish, and that's the tell.`,
+      starterSql: `SELECT
+    payment_status,
+    COUNT(*) AS payments
+    -- TODO: add SUM(amount) AS total_amount
+FROM raw_payments
+GROUP BY payment_status
+ORDER BY payments DESC;`,
+      hint: `Add \`, SUM(amount) AS total_amount\` after the count (mind the comma).`,
+      solution: `SELECT
+    payment_status,
+    COUNT(*)    AS payments,
+    SUM(amount) AS total_amount
+FROM raw_payments
+GROUP BY payment_status
+ORDER BY payments DESC;`,
+      validate: (s) =>
+        lastQuerySucceeded(s) &&
+        lastQueryRowCountEquals(s, 3) &&
+        lastQueryHasColumns(s, ['payment_status', 'total_amount']) &&
+        lastQueryContainsRow(s, { payment_status: 'paid', payments: 5, total_amount: 1060 }) &&
+        lastQueryContainsRow(s, { payment_status: 'refunded', total_amount: -200 }),
+      explanation: `**paid 1060, failed 0, refunded -200.** You just used the two roles together: you \`GROUP BY\` the **attribute** (\`payment_status\`) and \`SUM\` the **metric** (\`amount\`). Swap them and it breaks — \`SUM(payment_status)\` is meaningless, and \`GROUP BY amount\` would shatter the table into one group per distinct price. \`payment_id\` is *numeric* but it's an identifier, so \`SUM(payment_id)\` is gibberish too. The mental rule: **a metric is what you'd put on the y-axis of a chart; an attribute is what you'd put on the x-axis.**`,
     },
   ],
 }

@@ -19,7 +19,7 @@ const codeStyle: React.CSSProperties = {
 
 export function renderInline(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = []
-  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g
   let last = 0
   let m
   let i = 0
@@ -28,6 +28,19 @@ export function renderInline(text: string): React.ReactNode[] {
     const tok = m[0]
     if (tok.startsWith('**')) {
       parts.push(<strong key={i++} style={{ color: 'var(--color-text)' }}>{tok.slice(2, -2)}</strong>)
+    } else if (tok.startsWith('[')) {
+      const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)!
+      parts.push(
+        <a
+          key={i++}
+          href={link[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'var(--color-accent-orange)', textDecoration: 'underline' }}
+        >
+          {link[1]}
+        </a>,
+      )
     } else if (tok.startsWith('*')) {
       parts.push(<em key={i++}>{tok.slice(1, -1)}</em>)
     } else {

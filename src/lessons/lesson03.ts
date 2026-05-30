@@ -23,8 +23,9 @@ import sketch from '../sketches/lesson03.svg?raw'
  *   raw_customers: 4 rows, all signup_year = 2024
  *   raw_products:  P001/P002 list_price >= 100 (premium); P003/P004 < 100 (basic)
  *
- * Side quest (Lesson 3b) builds dim_date — optional follow-up, not a
- * dependency of lesson 4.
+ * The optional staging side quest (id 2.5) precedes this lesson: it cleans a
+ * raw table 1:1 into stg_customers. The dim_date side quest (id 5.5) now sits
+ * after lesson 5; neither is a dependency of this lesson.
  */
 const lesson03: Lesson = {
   id: 3,
@@ -32,11 +33,14 @@ const lesson03: Lesson = {
   schemaSketch: { svg: sketch, alt: 'dim_customers: a small table with a header row (customer_id, customer_name, city, state, signup_year) and a few sample rows. Caption: few rows, many descriptive columns, zero metrics' },
   concept: `A **dimension** table is one row per **entity** — one customer, one product. It carries the descriptive attributes that every report and chart will reach for: name, city, category, price band. By convention, we name it \`dim_*\`.
 
+Dimensions are the first half of the **model layer**. The full path a table travels is \`raw → staging → models (dims + facts) → mart\`: *staging* cleans each raw table 1:1 (rename, cast types, fix the obvious mess) without touching its grain; the *model layer* reshapes that clean data into dimensions and facts; the *mart* aggregates them into the answer a stakeholder queries. This lab folds the staging cleanup into the dim/fact build to keep the focus on modeling decisions, but in a real project staging is its own layer (the optional staging side quest just before this lesson walks through that cleanup by hand). Facts are the other half of the model layer; you'll build those next.
+
 Three things matter:
+
 1. **Few rows, many columns.** Dimensions describe small, stable sets. Adding a customer means adding *one* row.
 2. **No metrics live here.** Quantities and amounts belong in facts (next lesson). \`list_price\` is the *posted* price of the product — an attribute. \`unit_price\` from \`raw_order_items\` is the price actually *paid* in one sale — a metric. Same kind of value, different role.
 3. **Building a dim is a choice.** What columns to include, what to rename, what to derive (a \`signup_year\` from \`signup_date\`, a \`price_band\` from \`list_price\`). The dim is the canonical, agreed-upon description of the entity. If a rule lives in 20 reports, those reports will drift; if it lives in the dim, they can't.`,
-  dbtBridge: `In dbt, a dim is just a SQL file at \`models/marts/dim_customers.sql\` returning the dim shape. \`unique\` and \`not_null\` tests on the PK column (the same ones you ran in lesson 1) lock the contract — downstream models can trust that \`customer_id\` is a real key.`,
+  dbtBridge: `In dbt, a dim is just a SQL file (e.g. \`models/marts/dim_customers.sql\`) with \`unique\` + \`not_null\` tests on its PK — the same grain check from lesson 1, made permanent.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
@@ -96,7 +100,7 @@ SELECT * FROM dim_customers;`,
       options: [
         'Identifier — it\'s a unique number per product',
         'Descriptive attribute — it describes the product itself',
-        'Metric — it\'s a number, so you\'d \`SUM\` it for total revenue',
+        'Metric — it\'s a number, so you\'d `SUM` it for total revenue',
         'Foreign key — it links to a price table',
       ],
       correctIndex: 1,
@@ -143,27 +147,33 @@ SELECT * FROM dim_products ORDER BY product_id;`,
       id: 'where-does-name-live',
       question: `A customer emails: "you've misspelled my name on every receipt." You confirm — \`customer_name\` is wrong in one place. Where do you edit it?`,
       options: [
-        'In every \`fact_orders\` row that mentions that customer',
-        'In \`dim_customers\` — one row, one edit, and every join picks up the fix',
-        'In both \`dim_customers\` and \`fact_orders\` to keep them consistent',
+        'In every `fact_orders` row that mentions that customer',
+        'In `dim_customers` — one row, one edit, and every join picks up the fix',
+        'In both `dim_customers` and `fact_orders` to keep them consistent',
         'Edit the raw CSV and rebuild everything',
       ],
       correctIndex: 1,
-      explanation: `That's *the* reason dimensions exist. Descriptive attributes live in **one place**, the dim. Facts carry only the foreign key (\`customer_id\`); they pick the customer's current name up through a JOIN at query time. If \`customer_name\` were duplicated onto every fact row, a name change would require touching thousands of rows — and one missed update means an inconsistent dashboard.`,
+      explanation: `That's *the* reason dimensions exist. Descriptive attributes live in **one place**, the dim. Facts carry only the foreign key (\`customer_id\`); they pick the customer's current name up through a JOIN at query time. If \`customer_name\` were duplicated onto every fact row, a name change would require touching thousands of rows — and one missed update means an inconsistent dashboard.
+
+What you just did is a **type-1** change: overwrite the value and forget the old one. That's the right default. But sometimes the old value matters — *which orders shipped under the customer's previous name or address?* Preserving that history is a **type-2 slowly changing dimension**: instead of overwriting, you keep both versions as separate rows with validity dates, and the dim gets its own **surrogate key** (a stable warehouse id, separate from the natural \`customer_id\`) so a fact can point at the *version* that was current when the event happened. We use natural keys and type-1 overwrites throughout this lab; type-2 history and surrogate keys are a v2 topic — just know the door is there.`,
     },
     {
       kind: 'checkpoint',
       id: 'scaling-shape',
       question: `DataShop scales: 10 million orders next year. Which table grows fastest?`,
       options: [
-        '\`dim_customers\` — every order brings new customer data',
-        '\`fact_orders\` — every order is a new row',
+        '`dim_customers` — every order brings new customer data',
+        '`fact_orders` — every order is a new row',
         'Both grow at the same rate; they\'re linked',
-        '\`dim_products\` — more orders mean more products',
+        '`dim_products` — more orders mean more products',
       ],
       correctIndex: 1,
       explanation: `Facts grow forever as events happen — that's the *shape* of a fact table. Dimensions describe a stable, small set: 10 million orders might come from only 100,000 distinct customers, and \`dim_customers\` only has to grow when a *new* one signs up. This asymmetry — small, stable dims; large, ever-growing facts — is exactly why we split them. Next lesson builds the fact side.`,
     },
+  ],
+  furtherReading: [
+    { label: 'Kimball: surrogate keys', url: 'https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/dimension-surrogate-key/' },
+    { label: 'Kimball: type-2 slowly changing dimensions', url: 'https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/type-2/' },
   ],
 }
 

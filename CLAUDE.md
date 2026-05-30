@@ -35,8 +35,25 @@ src/
   lessons/
     lesson00.ts     Full-page intro (rendered by IntroPage, not LessonPanel)
     lesson01.ts     Grain — fully polished reference
-    lesson02..07    Stubs (typed; concept + 1-2 example steps each)
-    lesson03b.ts    dim_date side quest (id 3.5 — sorts between 3 and 4)
+    lesson02..08    Fully authored (concept + 4-9 SQL/checkpoint steps each).
+                    NOTE: lesson05 is the "joins that LOSE rows" half
+                    (LEFT/INNER, WHERE-vs-ON, anti-join); the duplicate-PK /
+                    broken-JOIN demo ("joins that MULTIPLY rows") opens
+                    lesson06 and leads into fan-out. Not in lesson04.
+                    lesson07 = the monthly mart (facts sliced by time);
+                    lesson08 = the dimension-sliced capstone (the star pays
+                    off — fact→dim join, single source of truth). lesson08 is
+                    the finale; it pre-materializes mart_monthly_sales so
+                    CourseComplete can show both marts side by side.
+    lesson02b.ts    staging-layer side quest (id 2.5 — sorts between 2 and 3).
+                    Cleans a deliberately messy raw_customers_messy into
+                    stg_customers (trim/cast/rename/standardize), grain
+                    preserved. Shaping only — no dedup/DQ asserts (that's
+                    transform-lab). Self-contained: no seeds, builds its own
+                    messy table in preMaterialize.
+    lesson05b.ts    dim_date side quest (id 5.5 — sorts between 5 and 6, after
+                    the joins lesson so its calendar-spine LEFT JOIN applies
+                    L5 rather than previewing it; still before L7 needs it)
     index.ts        lessons[], getLessonById, getLastLessonId, isSideQuest, stepKey
                     NOTE: data-quality is NOT a lesson — see "What's NOT in v1" below
   store/
@@ -48,7 +65,7 @@ src/
     Editor.tsx      Single-buffer Monaco + Run button (⌘↵)
     ResultsPanel.tsx Renders `lastQuery` rows / error
     IntroPage.tsx   Lesson-0 landing
-    CourseComplete.tsx Mart finale (shown after lesson 7)
+    CourseComplete.tsx Mart finale (shown after lesson 8; previews both marts)
     Header / LabBar / PrivacyPage / ErrorBoundary / Markdownish
 ```
 
@@ -67,7 +84,7 @@ type Lesson = {
 }
 ```
 
-- **Side quests** use a non-integer id (lesson 3b is `3.5`). `Number.isInteger(id)` distinguishes.
+- **Side quests** use a non-integer id (staging is `2.5`, dim_date is `5.5`). `Number.isInteger(id)` distinguishes. The forward "Next lesson" routing for these fractional ids lives in `nextLessonId` in `LessonPanel.tsx`.
 - **Lesson 0** has `steps: []`; it is the intro, rendered by `<IntroPage>` not `<LessonPanel>`.
 - **Validators** are pure functions over `LessonState` (editor SQL, last query result, materialized tables, passed checkpoints). They run after every `runQuery`.
 
@@ -99,11 +116,12 @@ Memorize these — every lesson keys off them.
 | fan-out trap (SUM amount JOIN items) | **1800** |
 | AOV (1060 / 5 paid orders) | 212 |
 | mart_monthly_sales | 2 rows (2024-03 and 2024-04) |
+| mart_sales_by_category (L8) | Course 780 / 5 units, Accessory 280 / 6 units |
 
 ## What's NOT in v1
 
-- **Data quality / testing as a lesson** (notebook `02b`). Cut deliberately: testing is a discipline of its own and overlaps with transform-lab's territory. The grain check in lesson 1 is the only DQ touchpoint, framed as the operational definition of a PK — with a one-paragraph `dbtBridge` pointing the learner at transform-lab for the four named tests. Do **not** add a DQ side quest here; it would be a worse version of what transform-lab already does.
-- SCDs and fact-table types (notebook 07/08) — deferred to v2
+- **Data quality / testing as a lesson** (notebook `02b`). Cut deliberately: testing is a discipline of its own and overlaps with transform-lab's territory. The grain check in lesson 1 is the only DQ touchpoint, framed as the operational definition of a PK — with a one-paragraph `dbtBridge` pointing the learner at transform-lab for the four named tests. Do **not** add a DQ side quest here; it would be a worse version of what transform-lab already does. (The staging side quest at 2.5 is *shaping*, not DQ: rename/cast/standardize/trim with the grain preserved, and it deliberately makes **no** test assertions — keep that line; the moment a contributor wants to add `not_null`/`unique`/`accepted_values` asserts, that's transform-lab's job.)
+- SCDs and fact-table types (notebook 07/08) — deferred to v2. Type-1 vs type-2 and surrogate keys are *named* in lesson 3's name-edit checkpoint (so type-1 overwrite isn't taught as the whole story), but type-2 history is not built here.
 - The three notebook session quizzes — replaced by inline checkpoints
 - Multi-language UI — EN only at launch
 - AI / Claude framing — out of scope here

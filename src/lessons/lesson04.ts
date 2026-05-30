@@ -3,13 +3,11 @@ import {
   lastQuerySucceeded,
   lastQueryRowCountEquals,
   lastQueryColumnsEqual,
-  lastQueryHasColumns,
   lastQueryContainsRow,
-  lastQueryScalarEquals,
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
-import sketch from '../sketches/lesson04.svg?raw'
+import sketch from '../sketches/lesson04-star.svg?raw'
 
 /**
  * Lesson 4 — Facts.
@@ -18,23 +16,23 @@ import sketch from '../sketches/lesson04.svg?raw'
  *   - a fact is one row per event: FKs + metrics, almost nothing else
  *   - two facts can share an entity but have different grains (orders vs
  *     order items) — and that's a feature, not a problem to merge away
- *   - the DUPLICATED-DIM DEMO (6 -> 8 rows) is the headline aha: a JOIN
- *     is only as safe as the PK on its right side
+ *   - the star schema is the default reporting shape: fact in the middle,
+ *     dims on the points, each attribute defined in exactly one place
  *
  * dim_customers and dim_products are pre-materialized here (the learner
- * built them in lesson 3); this lesson focuses on the fact side.
+ * built them in lesson 3) so the fact-vs-dim contrast has both halves of
+ * the star on hand; this lesson focuses on the fact side. The duplicate-dim
+ * / broken-JOIN demo lives in lesson 6, where it opens the fan-out lesson.
  *
  * Reference data (DataShop):
  *   raw_orders        6 rows
  *   raw_order_items   9 rows  (3 orders carry multiple items)
  *   raw_payments      7 rows  (6 distinct order_ids — O006 has 2 payments)
- *   C002 (Bruno)      has 2 orders → duplicating his dim row inflates the
- *                     fact_orders×dim_customers JOIN from 6 to 8 rows.
  */
 const lesson04: Lesson = {
   id: 4,
   title: 'Facts',
-  schemaSketch: { svg: sketch, alt: 'fact_orders on the left (FACT box with order_id, customer_id (FK), order_date, order_status) joined by an FK arrow to dim_customers on the right (DIM box with customer_id (PK), customer_name, city, signup_year)' },
+  schemaSketch: { svg: sketch, alt: 'A star schema: fact_orders sits in the center as the hub, with arms radiating out to three dimension tables — dim_customers, dim_products, and dim_date (a side quest) — each connected by a foreign-key-to-primary-key line.' },
   concept: `A **fact** table is one row per **event** — an order placed, a line item, a payment received. It carries:
 
 - **Foreign keys** to dims (\`customer_id\`, \`product_id\`).
@@ -44,12 +42,18 @@ const lesson04: Lesson = {
 
 Facts grow forever as events happen — that's their shape. The discipline is to keep them lean: clean grain, metrics ready to \`SUM\`, attributes pushed out to dims where they can be edited in one place.
 
-Two facts can share an entity but live at **different grains**. \`fact_orders\` is "one order"; \`fact_order_items\` is "one line on an order". Don't merge them — different grains answer different questions.`,
-  dbtBridge: `Facts live at \`models/marts/fact_*.sql\`. A \`unique\` + \`not_null\` test on the fact's PK locks the grain; a \`relationships\` test on each FK (pointing back to its dim) turns referential integrity from a hope into a query.`,
+Facts and dims together are the **model layer** (\`raw → models → mart\`): built once from raw, then queried by every mart and report downstream. This lesson builds the fact half.
+
+Two facts can share an entity but live at **different grains**. \`fact_orders\` is "one order"; \`fact_order_items\` is "one line on an order". Don't merge them — different grains answer different questions.
+
+**Put a fact in the middle and connect it to its dims by foreign key, and the shape you draw is a star** (see the diagram above): the fact is the hub, each dim is a point. That's the **star schema**, the default way analytics engineers model for reporting. \`fact_orders\` joins out to \`dim_customers\`, \`dim_products\`, and \`dim_date\` — each metric lives once in the fact, each attribute lives once in a dim.
+
+There's a tempting alternative — **One Big Table (OBT)**: flatten everything into one wide table so no query ever joins. Easier to query, harder to keep honest. The last checkpoint in this lesson weighs that trade against the star.`,
+  dbtBridge: `In dbt, each of a fact's foreign keys gets a \`relationships\` test pointing back to its dim's PK — so a fact row referencing a customer who isn't in \`dim_customers\` fails CI instead of silently dropping out of a JOIN later.`,
   seeds: DATASHOP_SEEDS,
   // dim_customers and dim_products were the work of lesson 3; pre-build
-  // them here so this lesson can focus on facts (and so the duplicate-dim
-  // demo has something to corrupt).
+  // them here so this lesson can focus on the fact side with both halves
+  // of the star on hand.
   preMaterialize: [
     `CREATE OR REPLACE TABLE dim_customers AS SELECT * FROM raw_customers`,
     `CREATE OR REPLACE TABLE dim_products AS SELECT * FROM raw_products`,
@@ -119,28 +123,10 @@ SELECT * FROM fact_order_items ORDER BY order_item_id;`,
         lastQuerySucceeded(s) &&
         tableExists(s, 'fact_order_items') &&
         lastQueryRowCountEquals(s, 9) &&
-        lastQueryHasColumns(s, ['item_amount']) &&
+        lastQueryColumnsEqual(s, ['order_item_id', 'order_id', 'product_id', 'quantity', 'unit_price', 'item_amount']) &&
         lastQueryContainsRow(s, { order_item_id: 'OI008', item_amount: 120 }) &&
         lastQueryContainsRow(s, { order_item_id: 'OI001', item_amount: 100 }),
       explanation: `Nine rows — one per line item. \`fact_orders\` has 6 rows; \`fact_order_items\` has 9. Same entity (orders), **different grains.** That's by design: "how many orders did we ship in March?" is a \`fact_orders\` question; "how many units of P002 did we sell?" is a \`fact_order_items\` question. Don't try to answer both from one table.`,
-    },
-    {
-      kind: 'sql',
-      id: 'duplicated-dim-demo',
-      prompt: `**Predict, then run.** \`fact_orders\` has 6 rows. Now imagine a data quality slip: a duplicate Bruno (\`C002\`) row gets inserted into \`dim_customers\`. What does \`COUNT(*)\` return for the JOIN below — 6, 7, or 8?`,
-      starterSql: `-- Corrupt the dim: insert a duplicate of Bruno (C002).
-INSERT INTO dim_customers
-SELECT customer_id, customer_name || ' (dup)', city, state, signup_date
-FROM dim_customers WHERE customer_id = 'C002';
-
--- Now COUNT the rows of the JOIN. Predict before running!
-SELECT COUNT(*) AS join_row_count
-FROM fact_orders f
-JOIN dim_customers c ON f.customer_id = c.customer_id;`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryScalarEquals(s, 8),
-      explanation: `**8 rows.** Bruno has 2 orders (O002 and O006). Each one now matches *two* dim rows (the original + the duplicate), so Bruno contributes 4 rows instead of 2. The other 4 orders are unaffected. Total: 4 + 4 = 8. This is the silent killer of analytics queries — your JOIN looked safe, but the dim's PK wasn't actually unique. **A JOIN is only as trustworthy as the \`unique\` constraint on its right side.** The grain test from lesson 1 (\`COUNT(*) = COUNT(DISTINCT key)\`) is what catches this.`,
     },
     {
       kind: 'sql',
@@ -163,13 +149,26 @@ FROM fact_payments;`,
     },
     {
       kind: 'checkpoint',
+      id: 'star-vs-obt',
+      question: `A teammate proposes skipping dims entirely: one wide table, \`orders_everything\`, with the customer's name and city and the product's details copied onto every order row. What does the **star schema** (separate \`fact_orders\` + dims) buy you that the one-big-table version doesn't?`,
+      options: [
+        'Nothing — the wide table is strictly better because it never needs a JOIN',
+        'Each attribute lives in exactly one place: fix a customer\'s name once in `dim_customers` and every fact picks it up — no million-row rewrite, no drift',
+        'The star schema always uses less storage',
+        'Facts can only be queried at all when they\'re split out from dims',
+      ],
+      correctIndex: 1,
+      explanation: `The wide table genuinely is easier to *query* — no joins — and that's the one thing OBT wins on. But it duplicates every attribute onto every row, so a single name change means rewriting it everywhere, and any row you miss silently drifts. The star keeps each attribute in one dim and each metric in one fact; you pay one hop of JOIN at query time to get **edit-in-one-place correctness** and an honest grain. That trade — a JOIN for a single source of truth — is why the star is the analytics default.`,
+    },
+    {
+      kind: 'checkpoint',
       id: 'which-fact-for-units',
       question: `A product manager asks: **"how many *units* of each product did we sell?"** Which fact answers this?`,
       options: [
-        '\`fact_orders\` — count rows per product',
-        '\`fact_order_items\` — \`SUM(quantity)\` grouped by \`product_id\`',
-        '\`fact_payments\` — divide \`amount\` by \`unit_price\`',
-        '\`dim_products\` — it has all the products',
+        '`fact_orders` — count rows per product',
+        '`fact_order_items` — `SUM(quantity)` grouped by `product_id`',
+        '`fact_payments` — divide `amount` by `unit_price`',
+        '`dim_products` — it has all the products',
       ],
       correctIndex: 1,
       explanation: `Units sold means **summing the \`quantity\` metric** at the line-item grain — that's \`fact_order_items\`. \`fact_orders\` doesn't have a quantity column (the grain is wrong: one order can contain multiple products). \`fact_payments\` knows about money, not units. \`dim_products\` doesn't know about sales at all. **Always pick the fact whose grain matches the question.**`,

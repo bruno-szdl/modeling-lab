@@ -34,8 +34,9 @@ export default function IntroPage() {
           fontFamily: 'var(--font-sans)', fontSize: '1.125rem', lineHeight: 1.55,
           color: 'var(--color-text-secondary)', margin: '0 auto 24px', maxWidth: '560px',
         }}>
-          From raw tables to an analytics mart. Learn the modeling decisions behind analytics
-          engineering — grain, dimensions, facts, fan-out, and the mart that pulls it together.
+          You'll climb the layers an analytics engineer builds — raw → models (dims + facts) → mart —
+          and make the modeling decisions at each step: grain, dimensions, facts, fan-out, and the
+          marts that pull it all together.
         </p>
         <button
           onClick={() => void loadLesson(hasProgress ? useGameStore.getState().currentLessonId || 1 : 1)}
@@ -53,7 +54,7 @@ export default function IntroPage() {
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '32px',
         }}>
           <Fact label="Who it's for" body="Analysts who know some SQL and want to become analytics engineers." />
-          <Fact label="What you'll build" body="A two-row monthly sales mart, the right way — dims, facts, and a fan-out you'll predict, then break." />
+          <Fact label="What you'll build" body="Two analytics marts from one star — sales by month and by category — plus a fan-out you'll predict, then break." />
           <Fact label="No setup" body="Real SQL runs in your browser against DuckDB. No install, no account, nothing to download." />
           <Fact label="Estimated time" body="~3–4 hours total. Each lesson is self-contained — pick up where you left off." />
         </div>
@@ -63,12 +64,14 @@ export default function IntroPage() {
           {[
             ['1', 'The grain of a table', 'What does one row represent? The anchor of everything.'],
             ['2', 'Entities, events, column roles', 'Three column roles — identifier, attribute, metric. The mental map for dims vs facts.'],
+            ['2b', 'Side quest: the staging layer', 'Clean a messy raw table 1:1 into a trustworthy stg_ model. Optional.'],
             ['3', 'Dimensions', 'One row per entity. Many descriptive columns, zero metrics.'],
-            ['3b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series. Optional.'],
             ['4', 'Facts', 'Many rows per event. FKs + metrics + nothing else.'],
-            ['5', 'Joins that don\'t break grain', 'LEFT JOIN as the analytics default. WHERE vs ON. Anti-joins.'],
+            ['5', 'Joins that don\'t break grain', 'LEFT JOIN as the analytics default. WHERE vs ON. Anti-joins, and a duplicate key that doubles your rows.'],
+            ['5b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series, then join from it. Optional.'],
             ['6', 'Metrics, fan-out, additivity', 'Predict 1060, run, get 1800. Learn why.'],
             ['7', 'Build the mart', 'Aggregate each fact at its grain, then join. Two rows out.'],
+            ['8', 'Slice by any dimension', 'The star pays off: the same facts, cut by category or anything else. Model once, slice forever.'],
           ].map(([num, title, desc]) => (
             <li key={num} style={{
               display: 'flex', gap: '12px', alignItems: 'flex-start',

@@ -24,6 +24,11 @@
 :root {
   --lab-accent: #3377A8;
   --lab-accent-strong: #00558C;
+
+  /* Wrong-answer feedback for checkpoints. Built on the design package's
+     --color-fail red (swapped per theme), so these adapt automatically. */
+  --color-fail-bg: color-mix(in srgb, var(--color-fail) 9%, transparent);
+  --color-fail-border: color-mix(in srgb, var(--color-fail) 45%, transparent);
 }
 
 /* Type scale: bump root font-size 10% on desktop so all rem-based typography

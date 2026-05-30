@@ -10,12 +10,18 @@ import sketch from '../sketches/lesson05.svg?raw'
 /**
  * Lesson 5 — Joins that don't break grain.
  *
- * Maps to notebook 04b. Teaches:
+ * Maps to notebook 04b. Teaches the "joins that LOSE rows" half of join
+ * correctness:
  *   - LEFT JOIN is the analytics default (keeps "everyone")
  *   - INNER JOIN silently drops the unmatched
  *   - WHERE vs ON for right-side filters — the silent-collapse bug
  *   - COALESCE to clean NULLs from LEFT JOIN output
  *   - anti-join via `LEFT JOIN ... WHERE right IS NULL`
+ *
+ * The mirror image — a non-unique key on the RIGHT side that MULTIPLIES
+ * rows (6 -> 8) — opens lesson 6, where that same multiplication lands on
+ * a metric and becomes fan-out. Keeping "lose rows" here and "multiply
+ * rows" there makes each lesson exactly one idea.
  *
  * The DataShop dataset is too tidy on its own — every customer has at
  * least one order, every product has sold at least once — so anti-joins
@@ -48,7 +54,9 @@ Three patterns to internalize:
 
 1. **\`LEFT JOIN\` to keep "everyone".** Useful whenever "no activity" is itself a valid answer — customers with zero spend, products that never sold, days with no sales.
 2. **\`WHERE\` vs \`ON\` for filters on the right side.** A right-side filter in \`WHERE\` silently turns your LEFT JOIN into an INNER (NULL rows from non-matches fail the filter and disappear). Move it to \`ON\` and the row survives the join with NULLs where the match didn't happen.
-3. **Anti-join** — \`LEFT JOIN ... WHERE right.column IS NULL\` finds the rows on the left that didn't match anything. "Find the missing" is the most common shape this takes.`,
+3. **Anti-join** — \`LEFT JOIN ... WHERE right.column IS NULL\` finds the rows on the left that didn't match anything. "Find the missing" is the most common shape this takes.
+
+A join can break grain in *two* directions. This lesson is about the first: keeping rows you'd otherwise **lose**. The mirror image — a join that silently **multiplies** rows, because the key isn't unique on the right side — opens the next lesson, where that same multiplication lands on a metric and becomes **fan-out**. A JOIN is only ever as trustworthy as the grain of the table on each side of it.`,
   dbtBridge: `dbt doesn't change JOIN syntax — it's plain SQL. But a \`relationships\` test catches *referential* slips (an FK pointing at a row that no longer exists) before they show up as silent JOIN bugs. And almost every \`models/marts/*.sql\` starts with a LEFT JOIN from a "spine" (a dim or a calendar), so dashboards don't silently lose days or customers.`,
   seeds: DATASHOP_SEEDS,
   // The DataShop is too tidy for an honest LEFT-vs-INNER demo: every
@@ -117,7 +125,7 @@ ORDER BY total_spent DESC NULLS LAST;`,
       id: 'when-inner-when-left',
       question: `When *should* you actually use \`INNER JOIN\` in an analytics query?`,
       options: [
-        'Never — \`LEFT JOIN\` is always safer',
+        'Never — `LEFT JOIN` is always safer',
         'When the right-side table is smaller than the left',
         'When a row with no match on the right is genuinely meaningless to the question (e.g. an order item with no product)',
         'When you want results faster — INNER is more performant',
@@ -161,10 +169,10 @@ ORDER BY total_spent DESC NULLS LAST;`,
       id: 'where-or-on',
       question: `You \`LEFT JOIN\` customers to payments. You want to exclude \`payment_status = 'failed'\`. Where does the filter go to keep customers with no payments at all?`,
       options: [
-        '\`WHERE p.payment_status <> \'failed\'\`',
-        '\`ON ... AND p.payment_status <> \'failed\'\`',
+        '`WHERE p.payment_status <> \'failed\'`',
+        '`ON ... AND p.payment_status <> \'failed\'`',
         'Either works — the LEFT JOIN protects either way',
-        'In a \`HAVING\` clause after the GROUP BY',
+        'In a `HAVING` clause after the GROUP BY',
       ],
       correctIndex: 1,
       explanation: `Same shape as the previous step. A right-side filter in \`WHERE\` drops the NULL rows (the customers who *have* no payments at all) along with the failed ones, silently collapsing your LEFT JOIN into an INNER. Put the filter in \`ON\` — failed payments don't match, the customer survives the join, and "no payments" stays a legitimate result.`,
@@ -187,7 +195,9 @@ WHERE o.order_id IS NULL;`,
         lastQuerySucceeded(s) &&
         lastQueryRowCountEquals(s, 1) &&
         lastQueryContainsRow(s, { customer_id: 'C999' }),
-      explanation: `One row: Eve. The pattern reads "give me every left row that *didn't* match anything on the right." Read it once and it's obvious; the first time you see it, it looks like magic. Anti-joins are the backbone of "find the missing" queries: products that never sold, customers who churned, days with no traffic. Whenever a stakeholder asks "what *isn't* happening?" — this is your shape.`,
+      explanation: `One row: Eve. The pattern reads "give me every left row that *didn't* match anything on the right." Read it once and it's obvious; the first time you see it, it looks like magic. Anti-joins are the backbone of "find the missing" queries: products that never sold, customers who churned, days with no traffic. Whenever a stakeholder asks "what *isn't* happening?" — this is your shape.
+
+That's the "lose rows" half of join correctness. The opposite failure — a join that silently *multiplies* rows — opens the next lesson, and from there it's a short step to the most expensive bug in analytics.`,
     },
   ],
 }
