@@ -177,12 +177,10 @@ export default function LessonPanel() {
 }
 
 function nextLessonId(current: number): number {
-  // Side quests sit in the forward "Next lesson" flow but carry fractional
-  // ids: 2.5 (the staging layer, after L2) and 5.5 (dim_date, after L5).
-  if (current === 2) return 2.5
-  if (current === 2.5) return 3
-  if (current === 5) return 5.5
-  if (current === 5.5) return 6
+  // The one side quest sits in the forward "Next lesson" flow but carries a
+  // fractional id: 7.5 (dim_date, after L7 joins, before L8 fan-out).
+  if (current === 7) return 7.5
+  if (current === 7.5) return 8
   return current + 1
 }
 

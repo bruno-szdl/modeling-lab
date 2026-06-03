@@ -7,8 +7,8 @@ type Preview = { columns: string[]; rows: unknown[][] }
 /**
  * The mart finale. Shown when the last lesson's final step completes. Previews
  * both marts the learner ends up with — `mart_monthly_sales` (sliced by time,
- * built in L7 and pre-materialized in L8) and `mart_sales_by_category` (sliced
- * by an attribute, built in L8) — to make the "one star, two questions" point
+ * built in L10 and pre-materialized in L11) and `mart_sales_by_category` (sliced
+ * by an attribute, built in L11) — to make the "one star, two questions" point
  * concrete. Surfaces two CTAs:
  *
  *   primary    → Build it in dbt: transform-lab.datagym.io

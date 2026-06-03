@@ -1,185 +1,129 @@
 import type { Lesson } from '../engine/types'
 import {
   lastQuerySucceeded,
-  lastQueryScalarEquals,
+  lastQueryRowCountEquals,
   lastQueryContainsRow,
-  lastQueryHasColumns,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson06.svg?raw'
 
 /**
- * Lesson 6 — Metrics, fan-out, additivity.
+ * Lesson 6 — Keys & relationships.
  *
- * Maps to notebook 05. Opens with the duplicate-PK / broken-JOIN demo
- * (moved here from lesson 5): a non-unique key on the right multiplies a
- * 6-row join to 8. That sets up the headline aha: SUM(p.amount) JOIN items
- * returns 1800 instead of 1060, because each paid payment fans out across
- * the line items of its order. Five paid payments × the number of items in
- * their orders = 8 rows in the joined result, then SUM double-counts.
+ * New lesson, inserted between Facts (L5) and Joins (L7). It centers the
+ * thing every join runs on — the key — and crystallizes the insight the old
+ * combined metrics lesson buried inside fan-out: a unique PK on the dim side
+ * is exactly what makes a FK->PK join grain-safe.
  *
- * The arc is row-count multiplication (you can see it) → the same
- * multiplication applied to a metric, where the damage hides in a number.
+ * Teaches:
+ *   - the same column plays two roles: PK in its dim (unique), FK in a fact
+ *     (repeats). The FK points at the PK.
+ *   - natural vs surrogate keys (named, not built — type-2/surrogate stays v2)
+ *   - the Lesson 1 grain check, reborn as the join-safety guarantee: a join
+ *     into a dim whose PK is unique can never multiply the fact's rows
+ *   - predict-the-row-count before you run (the lab's best device)
+ *   - the deliberate bridge into Lesson 8: the ONE thing that breaks this is a
+ *     non-unique key on the dim side — which is fan-out
  *
- * Expected scalars (DataShop, payment_status = 'paid'):
- *   gross_sales (cancelled excluded)                              = 1060
- *   paid_revenue (SUM at payment grain)                           = 1060
- *   broken paid_revenue (SUM after JOIN to items, fan-out)        = 1800
- *   paid_orders (COUNT DISTINCT order_id at payment grain)        = 5
- *   AOV = 1060 / 5                                                = 212
- *
- * The fan-out math: PAY001 (180, O001=2 items), PAY002 (280, O002=2 items),
- * PAY004 (280, O004=2 items), PAY005 (120, O005=1 item), PAY006 (200,
- * O006=1 item) → 2×180 + 2×280 + 2×280 + 1×120 + 1×200 = 1800.
+ * Reference data (DataShop):
+ *   dim_customers  4 rows, customer_id unique (PK)
+ *   fact_orders    6 rows, 4 distinct customer_id (FK repeats: Bruno has O002+O006)
  */
 const lesson06: Lesson = {
   id: 6,
-  title: 'Metrics, fan-out, additivity',
-  schemaSketch: { svg: sketch, alt: 'One payment row × two item rows = two joined rows, each carrying the payment amount $180. Caption: SUM(amount) = $360, not $180 — fan-out double-counts after a finer-grain JOIN' },
-  concept: `A **metric** has three parts you commit to *before* writing SQL: a **definition** (in English: "revenue is the sum of paid payment amounts, excluding refunds"), a **formula** (the SUM/COUNT/etc.), and a **grain** (which fact, at what level). Skip any of them and the team will argue about whose number is right.
+  title: 'Keys & relationships',
+  schemaSketch: {
+    svg: sketch,
+    alt: 'fact_orders on the left with a customer_id column where C002 appears twice (a foreign key that repeats), an arrow labelled FK to PK pointing right to dim_customers, where customer_id is the unique primary key (each value appears once).',
+  },
+  concept: `You built the star in the last two lessons; this one is about the thing that holds it together. A star is just tables connected by **keys**, and a join is the act of following one.
 
-A join **multiplies rows** when the key it matches on isn't unique on the right side — each left row pairs with *several* right rows. You'll reproduce that in the first two steps (a duplicate dim row takes a 6-row join to 8), and nothing will error. **Fan-out** is what that same multiplication does to a *metric*: you \`SUM\` a value *after* a JOIN that duplicated its rows, and the SUM counts the same value once per duplicate. The row-count damage you can see; the money damage hides inside a number that still looks plausible.
+Two roles, often the *same column*:
 
-The rule: **compute every metric at the grain of its own fact first.** If you need to combine multiple facts, aggregate each one to a shared grain, *then* join the rolled-up numbers — never the raw rows.
+- A **primary key (PK)** identifies one row of a table. It's **unique** — that's the Lesson 1 grain check (\`COUNT(*) = COUNT(DISTINCT key)\`). \`customer_id\` is the PK of \`dim_customers\`.
+- A **foreign key (FK)** is a column in one table that points at another table's PK. \`customer_id\` in \`fact_orders\` is an FK — it **repeats** (Bruno places two orders, so his \`customer_id\` shows up twice) and carries no description, just the pointer back to the dim.
 
-**Additivity** is the related discipline. A metric is *fully additive* if you can SUM it across any dimension (revenue, units sold). *Semi-additive* if it adds across some dimensions but not others (a daily balance — adds across customers, not across days). *Non-additive* if combining requires recomputing from ingredients — every ratio (AOV, conversion rate, AVG). Non-additive metrics don't belong in the mart as pre-computed values; their ingredients do.`,
-  dbtBridge: `In dbt, metric definitions live in the **Semantic Layer** (MetricFlow): each metric declares its measure, filter, and grain once, so every query respects the grain automatically.`,
+A join matches **FK → PK**: every fact row reaches across to the *one* dim row its key points at, and brings back that dim's attributes.
+
+Two flavours of key worth naming:
+
+- A **natural key** comes from the source system — \`customer_id = 'C001'\` was assigned by the operational app. This lab uses natural keys throughout.
+- A **surrogate key** is one the warehouse mints itself (often a plain integer), independent of the source. You reach for it when the natural key isn't stable, or when you need to keep history (type-2) so a fact can point at the *version* of an entity that was current when the event happened. We don't build surrogate keys here — type-2 history is a v2 topic — but you should know the word and why it exists.
+
+The payoff is a single rule you'll lean on for the rest of the lab: **a FK → PK join into a dim whose PK is unique can never change the fact's row count.** Each fact row matches exactly one dim row. That uniqueness — the grain check, made permanent — *is* join safety. Lesson 7 is about joins that lose rows; Lesson 8 is about what happens when this guarantee breaks and a join starts multiplying them.`,
+  dbtBridge: `Two tests encode this lesson. \`unique\` + \`not_null\` on a dim's PK is the grain check, run automatically on every build. A \`relationships\` test on a fact's FK asserts that every value points at a row that actually exists in the dim's PK — so a fact referencing a customer who isn't in \`dim_customers\` fails CI instead of silently vanishing from a JOIN later.`,
   seeds: DATASHOP_SEEDS,
-  // L4 built these; L6 needs them to run metric queries against.
+  // The learner built these in L4 (dims) and L5 (facts); pre-build them so this
+  // lesson can focus on the key that connects them.
   preMaterialize: [
+    `CREATE OR REPLACE TABLE dim_customers AS SELECT * FROM raw_customers`,
     `CREATE OR REPLACE TABLE fact_orders AS
        SELECT order_id, customer_id, order_date, order_status FROM raw_orders`,
-    `CREATE OR REPLACE TABLE fact_order_items AS
-       SELECT order_item_id, order_id, product_id, quantity, unit_price,
-              quantity * unit_price AS item_amount
-       FROM raw_order_items`,
-    `CREATE OR REPLACE TABLE fact_payments AS
-       SELECT * FROM raw_payments`,
   ],
   steps: [
     {
       kind: 'sql',
-      id: 'corrupt-the-dim',
-      prompt: `First, the join that *multiplies* rows — the mirror image of lesson 5, where every join *lost* them. To see it cleanly, rebuild \`dim_customers\` from the four real customers, then insert a duplicate Bruno (\`C002\`) — a classic data-quality slip. Run the lesson-1 grain check on the dim: do total rows and distinct \`customer_id\`s still match?`,
-      starterSql: `-- Rebuild a clean 4-customer dim first (so re-running never stacks dups),
--- then corrupt it with a duplicate Bruno (C002).
-CREATE OR REPLACE TABLE dim_customers AS SELECT * FROM raw_customers;
-
-INSERT INTO dim_customers
-SELECT customer_id, customer_name || ' (dup)', city, state, signup_date
-FROM dim_customers WHERE customer_id = 'C002';
-
--- Grain check: do total rows and distinct customer_ids still match?
-SELECT
-    COUNT(*)                    AS total_rows,
-    COUNT(DISTINCT customer_id) AS distinct_ids
-FROM dim_customers;`,
+      id: 'pk-vs-fk',
+      prompt: `\`customer_id\` lives in *both* \`dim_customers\` and \`fact_orders\` — but it plays a different role in each. Run the grain check on both at once and read the two rows. Where is \`customer_id\` unique, and where does it repeat?`,
+      starterSql: `SELECT 'dim_customers' AS tbl,
+       COUNT(*)                    AS row_count,
+       COUNT(DISTINCT customer_id) AS distinct_customer_ids
+FROM dim_customers
+UNION ALL
+SELECT 'fact_orders',
+       COUNT(*),
+       COUNT(DISTINCT customer_id)
+FROM fact_orders;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryContainsRow(s, { total_rows: 5, distinct_ids: 4 }),
-      explanation: `**5 rows, but only 4 distinct \`customer_id\`s** — they no longer match, so the lesson-1 grain test *fails*. \`customer_id\` is no longer unique in \`dim_customers\`: the PK is broken. Notice nothing errored. The table looks fine sitting there; the damage only shows up when something **joins** to it. That's the next step.`,
-    },
-    {
-      kind: 'sql',
-      id: 'count-the-broken-join',
-      prompt: `**Predict, then run.** \`fact_orders\` has 6 rows, and \`dim_customers\` now carries that duplicate Bruno. When you JOIN them on \`customer_id\`, how many rows come back — 6, 7, or 8?`,
-      starterSql: `SELECT COUNT(*) AS join_row_count
-FROM fact_orders f
-JOIN dim_customers c ON f.customer_id = c.customer_id;`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryScalarEquals(s, 8),
-      explanation: `**8 rows, not 6.** Bruno has 2 orders (O002 and O006). Each one now matches *two* dim rows (the original + the duplicate), so Bruno contributes 4 rows instead of 2. The other 4 orders are unaffected: 4 + 4 = 8. This is the silent killer of analytics queries — your JOIN looked safe, but the dim's PK wasn't actually unique. **A JOIN is only as trustworthy as the \`unique\` constraint on its right side** — which is exactly what the lesson-1 grain test (\`COUNT(*) = COUNT(DISTINCT key)\`) protects. So far this only multiplied *rows*; the rest of this lesson shows what the same multiplication does to a metric you \`SUM\` — and that's **fan-out**.`,
-    },
-    {
-      kind: 'sql',
-      id: 'gross-sales',
-      prompt: `Compute **gross sales** the right way: sum \`item_amount\` from \`fact_order_items\`, excluding cancelled orders. The grain of \`fact_order_items\` is "one line item" — and that's exactly the right grain for a revenue total from items.`,
-      starterSql: `SELECT SUM(i.item_amount) AS gross_sales
-FROM fact_order_items i
-JOIN fact_orders o ON o.order_id = i.order_id
-WHERE o.order_status <> 'cancelled';`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryHasColumns(s, ['gross_sales']) &&
-        lastQueryScalarEquals(s, 1060),
-      explanation: `**1060.** That's the gross sales number, defined as: "sum the item amounts of every line item on a non-cancelled order." Notice the *definition* commits to including refunded orders (the sale happened; the refund is a separate metric) — and excluding cancelled orders (those never happened). The grain of the SUM is the grain of \`fact_order_items\`. No JOIN inflated it.`,
-    },
-    {
-      kind: 'sql',
-      id: 'paid-revenue',
-      prompt: `Now compute **paid revenue** the right way: sum \`amount\` from \`fact_payments\` where \`payment_status = 'paid'\`. Different definition, different grain ("one payment"), and — interestingly for DataShop — the same number as gross sales. That's a coincidence of this curated dataset; in the wild they'd diverge.`,
-      starterSql: `SELECT SUM(amount) AS paid_revenue
-FROM fact_payments
-WHERE payment_status = 'paid';`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryHasColumns(s, ['paid_revenue']) &&
-        lastQueryScalarEquals(s, 1060),
-      explanation: `**1060 again.** Two metrics, two definitions, two facts — same number, this time. The lesson: a metric is *defined by where it lives*, not by what number it happens to produce. "Gross sales" comes from the items fact; "paid revenue" comes from the payments fact. They answer different business questions even when they agree numerically.`,
-    },
-    {
-      kind: 'sql',
-      id: 'fan-out-trap',
-      prompt: `**Predict before you run.** You know paid revenue is 1060. Now imagine someone writes the query below — SUMming \`amount\` from payments, but joined to items so they can also filter by product later. What does \`SUM(p.amount)\` return? 1060? 1800? Something else?`,
-      starterSql: `-- Same paid_revenue number — but via a JOIN to items.
--- Predict the result BEFORE you run.
-SELECT SUM(p.amount) AS paid_revenue_via_join
-FROM fact_payments p
-JOIN fact_order_items i ON i.order_id = p.order_id
-WHERE p.payment_status = 'paid';`,
-      validate: (s) =>
-        lastQuerySucceeded(s) && lastQueryScalarEquals(s, 1800),
-      explanation: `**1800, not 1060.** This is **fan-out**: each \`paid\` payment got JOINed once per line item on its order. PAY001 (\`amount=180\`) fanned out to 2 rows (O001 has 2 items), PAY002 (\`280\`) fanned to 2, PAY004 (\`280\`) fanned to 2, PAY005 (\`120\`) and PAY006 (\`200\`) stayed at 1 each. Sum: 2×180 + 2×280 + 2×280 + 120 + 200 = **1800**. The JOIN looked harmless; the SUM silently double-counted. This is the single most expensive mistake in analytics and the reason \`fact_payments\` and \`fact_order_items\` have to be aggregated separately *before* being combined.`,
+        lastQueryRowCountEquals(s, 2) &&
+        lastQueryContainsRow(s, { tbl: 'dim_customers', row_count: 4, distinct_customer_ids: 4 }) &&
+        lastQueryContainsRow(s, { tbl: 'fact_orders', row_count: 6, distinct_customer_ids: 4 }),
+      explanation: `In \`dim_customers\`: **4 rows, 4 distinct** \`customer_id\`s — it passes the grain check, so \`customer_id\` is the **primary key**, unique by design. In \`fact_orders\`: **6 rows, only 4 distinct** \`customer_id\`s — it *repeats*, because the same customer can place many orders. Here \`customer_id\` is a **foreign key**: a pointer back to the dim, not an identifier of the order. Same column name, two completely different jobs — and knowing which is which is what makes the next join safe.`,
     },
     {
       kind: 'checkpoint',
-      id: 'why-1800',
-      question: `Why did \`SUM(p.amount)\` jump from 1060 to 1800 after that JOIN?`,
+      id: 'natural-vs-surrogate',
+      question: `\`customer_id = 'C001'\` was assigned by DataShop's operational app, not by your warehouse. What kind of key is that, and what would a *surrogate* key be?`,
       options: [
-        'Refunded payments somehow crept in despite the filter',
-        'The JOIN to `fact_order_items` duplicated each payment once per line item on its order, so SUM counted the same payment multiple times',
-        'SUM is non-deterministic across different DuckDB versions',
-        'The cancelled order O003 stopped being excluded',
+        'It\'s a surrogate key, because the warehouse stores it',
+        'It\'s a natural key (it comes from the source system). A surrogate key is one the warehouse mints itself — usually an integer — independent of the source, used when the natural key isn\'t stable or you need to keep type-2 history.',
+        'There\'s no difference; "natural" and "surrogate" are two words for the same key',
+        'It\'s a foreign key, because it appears in `fact_orders` too',
       ],
       correctIndex: 1,
-      explanation: `The JOIN took \`fact_payments\` (5 paid rows) up to the *finer* grain of \`fact_order_items\` (which has multiple rows per order). Each payment was repeated once per matching item, and the SUM happily added the same payment value multiple times. **A SUM is only honest at the grain of the table it's summing from.** If you need product-level revenue, aggregate items to product first, *then* bring payments in — never the raw rows together.`,
+      explanation: `\`C001\` is a **natural key** — it arrived with the data. A **surrogate key** is a stable id the warehouse generates itself (commonly a sequence of integers). You reach for one when the source's id can change, when you merge two systems that both use \`C001\` for different customers, or when you keep **type-2 history** and need a fact to point at the *version* of a customer that was current when the order happened. This lab stays on natural keys and type-1 overwrites; surrogate keys and type-2 are a v2 topic. Knowing the word is enough for now.`,
     },
     {
       kind: 'sql',
-      id: 'aov-ingredients',
-      prompt: `**Average Order Value** is a ratio: paid revenue ÷ paid orders. Compute all three numbers in one query — \`paid_revenue\`, \`paid_orders\` (count distinct \`order_id\`, since a single order can have multiple payment rows), and the AOV itself.`,
-      starterSql: `SELECT
-    SUM(amount)              AS paid_revenue,
-    COUNT(DISTINCT order_id) AS paid_orders,
-    -- TODO: compute aov as paid_revenue / paid_orders
-FROM fact_payments
-WHERE payment_status = 'paid';`,
-      hint: `\`SUM(amount) / COUNT(DISTINCT order_id) AS aov\``,
-      solution: `SELECT
-    SUM(amount)                              AS paid_revenue,
-    COUNT(DISTINCT order_id)                 AS paid_orders,
-    SUM(amount) / COUNT(DISTINCT order_id)   AS aov
-FROM fact_payments
-WHERE payment_status = 'paid';`,
+      id: 'safe-join-predict',
+      prompt: `**Predict, then run.** \`fact_orders\` has 6 rows. Join it to \`dim_customers\` on \`customer_id\` to pull each order's \`customer_name\` back from the dim. How many rows come back — 4, 6, or 8?`,
+      starterSql: `SELECT o.order_id, o.customer_id, c.customer_name
+FROM fact_orders o
+JOIN dim_customers c ON c.customer_id = o.customer_id
+ORDER BY o.order_id;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryContainsRow(s, { paid_revenue: 1060, paid_orders: 5, aov: 212 }),
-      explanation: `**1060 revenue ÷ 5 paid orders = 212 AOV.** Note the \`COUNT(DISTINCT order_id)\`: even though there are 5 paid *payments*, they map to 5 distinct *orders* — there's no shortcut like \`COUNT(*)\`. The crucial insight is what the *mart* stores: not the \`aov\` column directly, but the two ingredients (\`paid_revenue\` and \`paid_orders\`). The ratio is recomputed at query time, and that recomputation is what makes the next step's question survive.`,
+        lastQueryRowCountEquals(s, 6) &&
+        lastQueryContainsRow(s, { order_id: 'O002', customer_name: 'Bruno Costa' }),
+      explanation: `**6 rows — exactly the count we started with.** Bruno's two orders (O002, O006) each matched his *one* row in \`dim_customers\`, so nothing multiplied. That's the rule in action: a FK → PK join into a dim whose PK is unique brings back the attribute (\`customer_name\`) **without changing the fact's grain**. The uniqueness you proved in step 1 — the Lesson 1 grain check — is precisely what guarantees it. The name lives once in the dim; the order carries only the key; the join reunites them.`,
     },
     {
       kind: 'checkpoint',
-      id: 'aov-additivity',
-      question: `March AOV was \\$200; April AOV was \\$250. What is the combined March-and-April AOV?`,
+      id: 'what-breaks-the-join',
+      question: `That join kept all 6 rows and not one more. What single change would make this *same* join suddenly return **more** than 6 rows?`,
       options: [
-        '\\$225 — the average of the monthly AOVs',
-        '\\$450 — the sum',
-        'Can\'t tell from the AOVs alone; you have to recompute from total paid_revenue and total paid_orders for the two months combined',
-        'Depends on which month had more orders, but somewhere between \\$200 and \\$250',
+        'Adding more orders to `fact_orders`',
+        'Switching the `JOIN` to a `LEFT JOIN`',
+        'A duplicate `customer_id` in `dim_customers` — a non-unique PK on the dim side, so a fact row could match more than one dim row',
+        'Selecting more columns from `dim_customers`',
       ],
       correctIndex: 2,
-      explanation: `AOV is a **ratio**, and ratios are **non-additive**. Imagine March had 1 order at \\$200 and April had 1000 orders at \\$250 — the combined AOV is much closer to \\$250 than to \\$225 because April dominates the weighting. To get the right answer you need (March revenue + April revenue) ÷ (March orders + April orders). **This is why marts store the ingredients of ratios, not the ratios themselves.** Pre-computing AOV per month and then trying to combine those values is mathematically broken; storing \`paid_revenue\` and \`paid_orders\` per month lets any consumer recompute AOV at any grouping they care about.`,
+      explanation: `The *only* thing that multiplies a FK → PK join is a **non-unique key on the dim (PK) side.** If \`dim_customers\` had two rows for Bruno, each of his orders would match *both* — and the result would balloon past 6. (A \`LEFT JOIN\` can *add* unmatched-left rows but never multiplies matched ones; more orders just keeps the 1:1 match.) Keep every dim's PK unique — the grain check — and your joins stay honest. **Lesson 8 deliberately breaks this guarantee and shows you what the resulting row-multiplication does to a \`SUM\`: fan-out, the most expensive bug in analytics.**`,
     },
+  ],
+  furtherReading: [
+    { label: 'Kimball: surrogate keys', url: 'https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/dimension-surrogate-key/' },
   ],
 }
 

@@ -2,202 +2,176 @@ import type { Lesson } from '../engine/types'
 import {
   lastQuerySucceeded,
   lastQueryRowCountEquals,
+  lastQueryColumnsEqual,
   lastQueryContainsRow,
+  tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson05.svg?raw'
 
 /**
- * Lesson 5 — Joins that don't break grain.
+ * Lesson 5 — Facts.
  *
- * Maps to notebook 04b. Teaches the "joins that LOSE rows" half of join
- * correctness:
- *   - LEFT JOIN is the analytics default (keeps "everyone")
- *   - INNER JOIN silently drops the unmatched
- *   - WHERE vs ON for right-side filters — the silent-collapse bug
- *   - COALESCE to clean NULLs from LEFT JOIN output
- *   - anti-join via `LEFT JOIN ... WHERE right IS NULL`
+ * Maps to notebook 04. Teaches:
+ *   - a fact is one row per event: FKs + metrics, almost nothing else
+ *   - two facts can share an entity but have different grains (orders vs
+ *     order items) — and that's a feature, not a problem to merge away
+ *   - the star schema is the default reporting shape: fact in the middle,
+ *     dims on the points, each attribute defined in exactly one place
  *
- * The mirror image — a non-unique key on the RIGHT side that MULTIPLIES
- * rows (6 -> 8) — opens lesson 6, where that same multiplication lands on
- * a metric and becomes fan-out. Keeping "lose rows" here and "multiply
- * rows" there makes each lesson exactly one idea.
+ * dim_customers and dim_products are pre-materialized here (the learner
+ * built them in lesson 3) so the fact-vs-dim contrast has both halves of
+ * the star on hand; this lesson focuses on the fact side. The duplicate-dim
+ * / broken-JOIN demo lives in lesson 8, where it opens the fan-out lesson.
  *
- * The DataShop dataset is too tidy on its own — every customer has at
- * least one order, every product has sold at least once — so anti-joins
- * and LEFT/INNER contrasts would be empty. We pre-materialize a phantom
- * customer "Eve" (C999) with no orders. She's the demonstration target:
- * she vanishes under INNER JOIN and under misplaced WHERE filters,
- * survives under LEFT JOIN with the filter in ON.
- *
- * Expected revenue numbers (no filter):
- *   Ana   380 (O001 + O003)
- *   Bruno 480 (O002 + O006)
- *   Clara 280 (O004)
- *   Diego 120 (O005)
- *   Eve     0 (no orders)
- *
- * With `order_status <> 'cancelled'` excluded (in ON):
- *   Ana   180 (O003 was cancelled; she keeps O001 = 100 + 80)
- *   Bruno 480 (his refunded order O006 is NOT cancelled, still counts)
- *   Clara 280
- *   Diego 120
- *   Eve     0
+ * Reference data (DataShop):
+ *   raw_orders        6 rows
+ *   raw_order_items   9 rows  (3 orders carry multiple items)
+ *   raw_payments      7 rows  (6 distinct order_ids — O006 has 2 payments)
  */
 const lesson05: Lesson = {
   id: 5,
-  title: `Joins that don't break grain`,
-  schemaSketch: { svg: sketch, alt: 'Two Venn-style diagrams side by side: LEFT JOIN (all of set A plus the intersection with B, highlighted in accent) and INNER JOIN (only the intersection of A and B, highlighted)' },
-  concept: `**\`LEFT JOIN\` is the default for analytics.** It keeps every row on the left, even when nothing matches on the right. \`INNER JOIN\` is the special case — reserved for "the row is useless without a match" (e.g. an item must have a product).
+  title: 'Facts',
+  schemaSketch: { svg: sketch, alt: 'A star schema: fact_orders sits in the center as the hub, with arms radiating out to three dimension tables — dim_customers, dim_products, and dim_date (a side quest) — each connected by a foreign-key-to-primary-key line.' },
+  concept: `A **fact** table is one row per **event** — an order placed, a line item, a payment received. It carries:
 
-Three patterns to internalize:
+- **Foreign keys** to dims (\`customer_id\`, \`product_id\`).
+- **Metrics** you'll aggregate (\`quantity\`, \`amount\`, \`item_amount\`).
+- A few **event-level attributes** that belong to the event itself, not to an entity (\`order_date\`, \`order_status\`).
+- **Almost nothing else.** No \`customer_name\` here — that lives in \`dim_customers\`. The fact carries the *foreign key*; the name comes back through a JOIN at query time.
 
-1. **\`LEFT JOIN\` to keep "everyone".** Useful whenever "no activity" is itself a valid answer — customers with zero spend, products that never sold, days with no sales.
-2. **\`WHERE\` vs \`ON\` for filters on the right side.** A right-side filter in \`WHERE\` silently turns your LEFT JOIN into an INNER (NULL rows from non-matches fail the filter and disappear). Move it to \`ON\` and the row survives the join with NULLs where the match didn't happen.
-3. **Anti-join** — \`LEFT JOIN ... WHERE right.column IS NULL\` finds the rows on the left that didn't match anything. "Find the missing" is the most common shape this takes.
+Facts grow forever as events happen — that's their shape. The discipline is to keep them lean: clean grain, metrics ready to \`SUM\`, attributes pushed out to dims where they can be edited in one place.
 
-A join can break grain in *two* directions. This lesson is about the first: keeping rows you'd otherwise **lose**. The mirror image — a join that silently **multiplies** rows, because the key isn't unique on the right side — opens the next lesson, where that same multiplication lands on a metric and becomes **fan-out**. A JOIN is only ever as trustworthy as the grain of the table on each side of it.`,
-  dbtBridge: `dbt doesn't change JOIN syntax — it's plain SQL. But a \`relationships\` test catches *referential* slips (an FK pointing at a row that no longer exists) before they show up as silent JOIN bugs. And almost every \`models/marts/*.sql\` starts with a LEFT JOIN from a "spine" (a dim or a calendar), so dashboards don't silently lose days or customers.`,
+Facts and dims together are the **model layer** (\`raw → models → mart\`): built once from raw, then queried by every mart and report downstream. This lesson builds the fact half.
+
+Two facts can share an entity but live at **different grains**. \`fact_orders\` is "one order"; \`fact_order_items\` is "one line on an order". Don't merge them — different grains answer different questions.
+
+**Put a fact in the middle and connect it to its dims by foreign key, and the shape you draw is a star** (see the diagram above): the fact is the hub, each dim is a point. That's the **star schema**, the default way analytics engineers model for reporting. \`fact_orders\` joins out to \`dim_customers\`, \`dim_products\`, and \`dim_date\` — each metric lives once in the fact, each attribute lives once in a dim.
+
+There's a tempting alternative — **One Big Table (OBT)**: flatten everything into one wide table so no query ever joins. Easier to query, harder to keep honest. The last checkpoint in this lesson weighs that trade against the star.`,
+  dbtBridge: `In dbt, each of a fact's foreign keys gets a \`relationships\` test pointing back to its dim's PK — so a fact row referencing a customer who isn't in \`dim_customers\` fails CI instead of silently dropping out of a JOIN later.`,
   seeds: DATASHOP_SEEDS,
-  // The DataShop is too tidy for an honest LEFT-vs-INNER demo: every
-  // customer has at least one order. Add Eve (C999) with no orders so the
-  // contrasts produce visibly different row counts.
+  // dim_customers and dim_products were the work of lesson 3; pre-build
+  // them here so this lesson can focus on the fact side with both halves
+  // of the star on hand.
   preMaterialize: [
-    `CREATE OR REPLACE TABLE dim_customers AS
-       SELECT * FROM raw_customers
-       UNION ALL
-       SELECT 'C999', 'Eve Phantom', 'Recife', 'PE', DATE '2024-05-01'`,
-    `CREATE OR REPLACE TABLE fact_orders AS
-       SELECT order_id, customer_id, order_date, order_status FROM raw_orders`,
-    `CREATE OR REPLACE TABLE fact_order_items AS
-       SELECT order_item_id, order_id, product_id, quantity, unit_price,
-              quantity * unit_price AS item_amount
-       FROM raw_order_items`,
+    `CREATE OR REPLACE TABLE dim_customers AS SELECT * FROM raw_customers`,
+    `CREATE OR REPLACE TABLE dim_products AS SELECT * FROM raw_products`,
   ],
   steps: [
     {
       kind: 'sql',
-      id: 'inner-join-loses-eve',
-      prompt: `Total spent per customer, **\`INNER JOIN\`** through dim → fact_orders → fact_order_items. There are **5** customers in \`dim_customers\` (Ana, Bruno, Clara, Diego, and a new one named Eve who joined last week and hasn't ordered yet). Run the query and count the rows.`,
-      starterSql: `SELECT
-    c.customer_name,
-    SUM(i.item_amount) AS total_spent
-FROM dim_customers c
-INNER JOIN fact_orders      o ON o.customer_id = c.customer_id
-INNER JOIN fact_order_items i ON i.order_id    = o.order_id
-GROUP BY c.customer_name
-ORDER BY total_spent DESC;`,
+      id: 'build-fact-orders',
+      prompt: `Build \`fact_orders\`: keys, the event-level attributes (\`order_date\`, \`order_status\`) — and nothing else. Notice what's *not* there: \`customer_name\`, \`city\`, anything descriptive about the customer.`,
+      starterSql: `CREATE OR REPLACE TABLE fact_orders AS
+SELECT
+    order_id,
+    customer_id,
+    order_date,
+    order_status
+FROM raw_orders;
+
+SELECT * FROM fact_orders ORDER BY order_id;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryRowCountEquals(s, 4),
-      explanation: `**4 rows, not 5.** Eve is missing — she has no row in \`fact_orders\`, so the INNER JOIN drops her silently. This is the killer: the query *worked*, no error, no warning. But "customers with no spend" is a perfectly valid bucket, and INNER JOIN can't represent it. If your dashboard says you have 4 customers when you actually have 5, you'll explain that gap to a stakeholder later.`,
-    },
-    {
-      kind: 'sql',
-      id: 'left-join-coalesce',
-      prompt: `Fix it. Switch both joins to \`LEFT JOIN\`, and wrap the \`SUM\` in \`COALESCE(..., 0)\` so Eve shows 0 instead of NULL. You should now see **5** rows.`,
-      starterSql: `SELECT
-    c.customer_name,
-    SUM(i.item_amount) AS total_spent
-FROM dim_customers c
-INNER JOIN fact_orders      o ON o.customer_id = c.customer_id
-INNER JOIN fact_order_items i ON i.order_id    = o.order_id
-GROUP BY c.customer_name
-ORDER BY total_spent DESC NULLS LAST;`,
-      hint: `Change both \`INNER JOIN\`s to \`LEFT JOIN\`. Then replace \`SUM(i.item_amount)\` with \`COALESCE(SUM(i.item_amount), 0)\`.`,
-      solution: `SELECT
-    c.customer_name,
-    COALESCE(SUM(i.item_amount), 0) AS total_spent
-FROM dim_customers c
-LEFT JOIN fact_orders      o ON o.customer_id = c.customer_id
-LEFT JOIN fact_order_items i ON i.order_id    = o.order_id
-GROUP BY c.customer_name
-ORDER BY total_spent DESC NULLS LAST;`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryRowCountEquals(s, 5) &&
-        lastQueryContainsRow(s, { customer_name: 'Eve Phantom', total_spent: 0 }) &&
-        lastQueryContainsRow(s, { customer_name: 'Bruno Costa', total_spent: 480 }),
-      explanation: `**5 rows.** Eve appears with \`total_spent = 0\`. The two changes do different things: \`LEFT JOIN\` keeps Eve in the result set; \`COALESCE\` turns the resulting NULL into a 0 so it reads cleanly. Without COALESCE, Eve would still appear — just with a NULL — which is honest, but ugly in a dashboard.`,
+        tableExists(s, 'fact_orders') &&
+        lastQueryRowCountEquals(s, 6) &&
+        lastQueryColumnsEqual(s, ['order_id', 'customer_id', 'order_date', 'order_status']),
+      explanation: `Six rows (one per order), four columns. \`fact_orders\` looks *skinny* on purpose. Every report that needs the customer's name will JOIN to \`dim_customers\` on \`customer_id\` — no need to carry the name around.`,
     },
     {
       kind: 'checkpoint',
-      id: 'when-inner-when-left',
-      question: `When *should* you actually use \`INNER JOIN\` in an analytics query?`,
+      id: 'why-no-customer-name',
+      question: `Why isn't \`customer_name\` a column on \`fact_orders\`?`,
       options: [
-        'Never — `LEFT JOIN` is always safer',
-        'When the right-side table is smaller than the left',
-        'When a row with no match on the right is genuinely meaningless to the question (e.g. an order item with no product)',
-        'When you want results faster — INNER is more performant',
+        'We forgot it; it should be there for convenience',
+        'Facts can\'t hold text columns at all — only numbers',
+        'It would duplicate the name onto every order row, and drift when the customer\'s name changes. The dim owns it; the fact looks it up via JOIN.',
+        'Facts only hold metrics, never identifiers',
       ],
       correctIndex: 2,
-      explanation: `\`INNER JOIN\` is right exactly when an unmatched left row is *not* an interesting answer. An order item without a product can't sell anything — drop it. A customer without orders **is** an interesting answer (zero spend is a number) — keep them with LEFT. The trap is using INNER by reflex; the win is using it *deliberately*.`,
+      explanation: `If a customer has 50 orders, putting their name on \`fact_orders\` means storing the name 50 times. Then they email about a misspelling, you fix it in \`dim_customers\` — and \`fact_orders\` still has the old spelling on 50 rows. **One fact for what happened, one dim for who it happened to.** Connect them with the FK.`,
     },
     {
       kind: 'sql',
-      id: 'where-vs-on',
-      prompt: `Now exclude **cancelled** orders from the calculation. The starter has the filter in \`WHERE\` — run it first and notice that **Eve disappears again** (down to 4 rows). Then move the filter into \`ON\` so Eve survives. Ana's number should drop from 380 to 180 (her cancelled order O003 stops counting), while Eve stays at 0.`,
-      starterSql: `SELECT
-    c.customer_name,
-    COALESCE(SUM(i.item_amount), 0) AS total_spent
-FROM dim_customers c
-LEFT JOIN fact_orders      o ON o.customer_id = c.customer_id
-LEFT JOIN fact_order_items i ON i.order_id    = o.order_id
-WHERE o.order_status <> 'cancelled'
-GROUP BY c.customer_name
-ORDER BY total_spent DESC NULLS LAST;`,
-      hint: `Delete the \`WHERE\` clause and add \` AND o.order_status <> 'cancelled'\` to the first \`LEFT JOIN\`'s \`ON\` clause.`,
-      solution: `SELECT
-    c.customer_name,
-    COALESCE(SUM(i.item_amount), 0) AS total_spent
-FROM dim_customers c
-LEFT JOIN fact_orders      o
-       ON o.customer_id = c.customer_id
-      AND o.order_status <> 'cancelled'
-LEFT JOIN fact_order_items i ON i.order_id    = o.order_id
-GROUP BY c.customer_name
-ORDER BY total_spent DESC NULLS LAST;`,
+      id: 'build-fact-order-items',
+      prompt: `Build \`fact_order_items\` at line-level grain — one row per (order, product) pair, with a derived \`item_amount\` (the metric you'll actually \`SUM\`). The raw table has \`quantity\` and \`unit_price\` but no pre-computed total; we derive it here so every downstream report uses the same definition.`,
+      starterSql: `CREATE OR REPLACE TABLE fact_order_items AS
+SELECT
+    order_item_id,
+    order_id,
+    product_id,
+    quantity,
+    unit_price,
+    -- TODO: add item_amount = quantity * unit_price
+FROM raw_order_items;
+
+SELECT * FROM fact_order_items ORDER BY order_item_id;`,
+      hint: `\`quantity * unit_price AS item_amount\``,
+      solution: `CREATE OR REPLACE TABLE fact_order_items AS
+SELECT
+    order_item_id,
+    order_id,
+    product_id,
+    quantity,
+    unit_price,
+    quantity * unit_price AS item_amount
+FROM raw_order_items;
+
+SELECT * FROM fact_order_items ORDER BY order_item_id;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryRowCountEquals(s, 5) &&
-        lastQueryContainsRow(s, { customer_name: 'Eve Phantom', total_spent: 0 }) &&
-        lastQueryContainsRow(s, { customer_name: 'Ana Lima', total_spent: 180 }),
-      explanation: `Why did Eve drop with \`WHERE\`? After the LEFT JOIN, Eve's \`order_status\` was \`NULL\` (she has no order). \`NULL <> 'cancelled'\` evaluates to \`NULL\` — which fails the WHERE filter — so the row is dropped. Move the filter to \`ON\` and it now decides "does this right row match?" — Eve's right row simply doesn't match, but the LEFT JOIN still keeps her with NULLs. **Rule of thumb: any filter that references the right-side table of a LEFT JOIN belongs in \`ON\`, not \`WHERE\`.**`,
+        tableExists(s, 'fact_order_items') &&
+        lastQueryRowCountEquals(s, 9) &&
+        lastQueryColumnsEqual(s, ['order_item_id', 'order_id', 'product_id', 'quantity', 'unit_price', 'item_amount']) &&
+        lastQueryContainsRow(s, { order_item_id: 'OI008', item_amount: 120 }) &&
+        lastQueryContainsRow(s, { order_item_id: 'OI001', item_amount: 100 }),
+      explanation: `Nine rows — one per line item. \`fact_orders\` has 6 rows; \`fact_order_items\` has 9. Same entity (orders), **different grains.** That's by design: "how many orders did we ship in March?" is a \`fact_orders\` question; "how many units of P002 did we sell?" is a \`fact_order_items\` question. Don't try to answer both from one table.`,
+    },
+    {
+      kind: 'sql',
+      id: 'fact-payments-grain',
+      prompt: `One more fact: \`fact_payments\`. Build it (a simple copy works here — \`raw_payments\` already has the right shape), then prove its grain in the same SELECT: row count and distinct \`payment_id\`s should match; \`order_id\` distinct count should be one less.`,
+      starterSql: `CREATE OR REPLACE TABLE fact_payments AS
+SELECT * FROM raw_payments;
+
+-- TODO: prove the grain — return total_rows, distinct_payment_ids, distinct_orders
+SELECT
+    COUNT(*)                   AS total_rows,
+    COUNT(DISTINCT payment_id) AS distinct_payment_ids,
+    COUNT(DISTINCT order_id)   AS distinct_orders
+FROM fact_payments;`,
+      validate: (s) =>
+        lastQuerySucceeded(s) &&
+        tableExists(s, 'fact_payments') &&
+        lastQueryContainsRow(s, { total_rows: 7, distinct_payment_ids: 7, distinct_orders: 6 }),
+      explanation: `7 rows, 7 distinct payments, but only 6 distinct orders — because order **O006** has two payment rows (a \`paid\` and a \`refunded\`). The grain of \`fact_payments\` is therefore "one payment", *not* "one order". If you were to count "orders that received any payment" by counting \`fact_payments\` rows, you'd over-count by one. Always check.`,
     },
     {
       kind: 'checkpoint',
-      id: 'where-or-on',
-      question: `You \`LEFT JOIN\` customers to payments. You want to exclude \`payment_status = 'failed'\`. Where does the filter go to keep customers with no payments at all?`,
+      id: 'star-vs-obt',
+      question: `A teammate proposes skipping dims entirely: one wide table, \`orders_everything\`, with the customer's name and city and the product's details copied onto every order row. What does the **star schema** (separate \`fact_orders\` + dims) buy you that the one-big-table version doesn't?`,
       options: [
-        '`WHERE p.payment_status <> \'failed\'`',
-        '`ON ... AND p.payment_status <> \'failed\'`',
-        'Either works — the LEFT JOIN protects either way',
-        'In a `HAVING` clause after the GROUP BY',
+        'Nothing — the wide table is strictly better because it never needs a JOIN',
+        'Each attribute lives in exactly one place: fix a customer\'s name once in `dim_customers` and every fact picks it up — no million-row rewrite, no drift',
+        'The star schema always uses less storage',
+        'Facts can only be queried at all when they\'re split out from dims',
       ],
       correctIndex: 1,
-      explanation: `Same shape as the previous step. A right-side filter in \`WHERE\` drops the NULL rows (the customers who *have* no payments at all) along with the failed ones, silently collapsing your LEFT JOIN into an INNER. Put the filter in \`ON\` — failed payments don't match, the customer survives the join, and "no payments" stays a legitimate result.`,
+      explanation: `The wide table genuinely is easier to *query* — no joins — and that's the one thing OBT wins on. But it duplicates every attribute onto every row, so a single name change means rewriting it everywhere, and any row you miss silently drifts. The star keeps each attribute in one dim and each metric in one fact; you pay one hop of JOIN at query time to get **edit-in-one-place correctness** and an honest grain. That trade — a JOIN for a single source of truth — is why the star is the analytics default.`,
     },
     {
-      kind: 'sql',
-      id: 'anti-join',
-      prompt: `Last pattern: the **anti-join**. Find every customer in \`dim_customers\` who has *no* row in \`fact_orders\` — i.e. has never ordered. The trick: \`LEFT JOIN\`, then \`WHERE\` on the *right* side being NULL.`,
-      starterSql: `SELECT c.customer_id, c.customer_name
-FROM dim_customers c
-LEFT JOIN fact_orders o ON o.customer_id = c.customer_id
--- TODO: keep only rows where the right side didn't match
-;`,
-      hint: `Add \`WHERE o.order_id IS NULL\` (or any non-nullable column from \`fact_orders\`).`,
-      solution: `SELECT c.customer_id, c.customer_name
-FROM dim_customers c
-LEFT JOIN fact_orders o ON o.customer_id = c.customer_id
-WHERE o.order_id IS NULL;`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryRowCountEquals(s, 1) &&
-        lastQueryContainsRow(s, { customer_id: 'C999' }),
-      explanation: `One row: Eve. The pattern reads "give me every left row that *didn't* match anything on the right." Read it once and it's obvious; the first time you see it, it looks like magic. Anti-joins are the backbone of "find the missing" queries: products that never sold, customers who churned, days with no traffic. Whenever a stakeholder asks "what *isn't* happening?" — this is your shape.
-
-That's the "lose rows" half of join correctness. The opposite failure — a join that silently *multiplies* rows — opens the next lesson, and from there it's a short step to the most expensive bug in analytics.`,
+      kind: 'checkpoint',
+      id: 'which-fact-for-units',
+      question: `A product manager asks: **"how many *units* of each product did we sell?"** Which fact answers this?`,
+      options: [
+        '`fact_orders` — count rows per product',
+        '`fact_order_items` — `SUM(quantity)` grouped by `product_id`',
+        '`fact_payments` — divide `amount` by `unit_price`',
+        '`dim_products` — it has all the products',
+      ],
+      correctIndex: 1,
+      explanation: `Units sold means **summing the \`quantity\` metric** at the line-item grain — that's \`fact_order_items\`. \`fact_orders\` doesn't have a quantity column (the grain is wrong: one order can contain multiple products). \`fact_payments\` knows about money, not units. \`dim_products\` doesn't know about sales at all. **Always pick the fact whose grain matches the question.**`,
     },
   ],
 }

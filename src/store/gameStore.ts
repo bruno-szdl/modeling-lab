@@ -6,7 +6,10 @@ import { stepKey, type LessonState, type LastQueryResult, type Step } from '../e
 import { getLessonById, getLastLessonId, lessons } from '../lessons'
 import { safeStorage } from './safeStorage'
 
-const PROGRESS_KEY = 'modeling-lab-progress'
+// Bumped to -v2 when the curriculum was renumbered (8 -> 11 lessons): the old
+// `<lessonId>.<stepId>` keys no longer line up, so in-flight learners reset
+// cleanly instead of seeing half-matched progress.
+const PROGRESS_KEY = 'modeling-lab-progress-v2'
 const THEME_KEY = 'modeling-lab-theme'
 
 interface PersistedProgress {

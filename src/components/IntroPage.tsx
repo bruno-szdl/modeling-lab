@@ -56,7 +56,7 @@ export default function IntroPage() {
           <Fact label="Who it's for" body="Analysts who know some SQL and want to become analytics engineers." />
           <Fact label="What you'll build" body="Two analytics marts from one star — sales by month and by category — plus a fan-out you'll predict, then break." />
           <Fact label="No setup" body="Real SQL runs in your browser against DuckDB. No install, no account, nothing to download." />
-          <Fact label="Estimated time" body="~3–4 hours total. Each lesson is self-contained — pick up where you left off." />
+          <Fact label="Estimated time" body="~4–5 hours total. Each lesson is self-contained — pick up where you left off." />
         </div>
 
         <h2 style={{ margin: '0 0 12px', fontSize: '1.125rem', fontWeight: 700 }}>What's inside</h2>
@@ -64,14 +64,16 @@ export default function IntroPage() {
           {[
             ['1', 'The grain of a table', 'What does one row represent? The anchor of everything.'],
             ['2', 'Entities, events, column roles', 'Three column roles — identifier, attribute, metric. The mental map for dims vs facts.'],
-            ['2b', 'Side quest: the staging layer', 'Clean a messy raw table 1:1 into a trustworthy stg_ model. Optional.'],
-            ['3', 'Dimensions', 'One row per entity. Many descriptive columns, zero metrics.'],
-            ['4', 'Facts', 'Many rows per event. FKs + metrics + nothing else.'],
-            ['5', 'Joins that don\'t break grain', 'LEFT JOIN as the analytics default. WHERE vs ON. Anti-joins, and a duplicate key that doubles your rows.'],
-            ['5b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series, then join from it. Optional.'],
-            ['6', 'Metrics, fan-out, additivity', 'Predict 1060, run, get 1800. Learn why.'],
-            ['7', 'Build the mart', 'Aggregate each fact at its grain, then join. Two rows out.'],
-            ['8', 'Slice by any dimension', 'The star pays off: the same facts, cut by category or anything else. Model once, slice forever.'],
+            ['3', 'The staging layer', 'Clean a messy raw table 1:1 into a trustworthy stg_ model.'],
+            ['4', 'Dimensions', 'One row per entity. Many descriptive columns, zero metrics.'],
+            ['5', 'Facts', 'Many rows per event. FKs + metrics + nothing else.'],
+            ['6', 'Keys & relationships', 'PK vs FK, natural vs surrogate — and the unique key that keeps a join honest.'],
+            ['7', 'Joins that don\'t break grain', 'LEFT JOIN as the analytics default. WHERE vs ON. Anti-joins.'],
+            ['7b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series, then join from it. Optional.'],
+            ['8', 'Fan-out: the join that multiplies rows', 'Predict 1060, run, get 1800 — the most expensive bug in analytics.'],
+            ['9', 'Metrics & additivity', 'Definition + formula + grain. Which metrics you can sum, and which you can\'t.'],
+            ['10', 'Build the mart', 'Aggregate each fact at its grain, then join. Two rows out.'],
+            ['11', 'Slice by any dimension', 'The star pays off: the same facts, cut by category or anything else. Model once, slice forever.'],
           ].map(([num, title, desc]) => (
             <li key={num} style={{
               display: 'flex', gap: '12px', alignItems: 'flex-start',

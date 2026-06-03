@@ -7,15 +7,15 @@ import {
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
-import sketch from '../sketches/lesson05b.svg?raw'
+import sketch from '../sketches/lesson07b.svg?raw'
 
 /**
- * Lesson 5b — Side quest: dim_date.
+ * Lesson 7b — Side quest: dim_date.
  *
  * Optional. Maps to notebook 03b. Lighter than core lessons (4 steps).
- * Sits after L5 (joins) so its closing calendar-spine LEFT JOIN *applies*
+ * Sits after L7 (joins) so its closing calendar-spine LEFT JOIN *applies*
  * the LEFT JOIN taught there, rather than previewing it. Still placed before
- * L7 so the monthly mart can refer back to "the calendar spine from the side
+ * L10 so the monthly mart can refer back to "the calendar spine from the side
  * quest". The unique payoff: a generated calendar dimension demonstrates that
  * "dimension" is a ROLE (context for facts) — not a statement about where
  * the data came from. The closing step delivers the "every day shows up
@@ -32,8 +32,8 @@ import sketch from '../sketches/lesson05b.svg?raw'
  *     Sat 2024-04-06    0
  *     Sun 2024-04-07    0
  */
-const lesson05b: Lesson = {
-  id: 5.5,
+const lesson07b: Lesson = {
+  id: 7.5,
   title: 'Side quest: dim_date',
   schemaSketch: { svg: sketch, alt: 'DuckDB generate_series function on the left, an arrow, and the resulting dim_date table on the right with 366 rows' },
   concept: `Calendar attributes — day of the week, month name, quarter, is-holiday — show up in every dashboard but never in your source data. The usual fix is to re-derive them inline (\`EXTRACT(quarter FROM order_date)\`, \`dayname(order_date)\`) in every query. That gets old fast, and any two queries that disagree on the rule (does the fiscal quarter start in February?) silently produce different numbers.
@@ -94,7 +94,7 @@ SELECT * FROM dim_date WHERE date_day = DATE '2024-03-02';`,
     {
       kind: 'sql',
       id: 'use-dim-date',
-      prompt: `Now the payoff the calendar dim was built for: **a daily revenue report where days with zero sales still show up.** Take the first week of April and \`LEFT JOIN\` *from* \`dim_date\` to \`raw_payments\` — the calendar is the spine, so every day appears whether or not a payment landed on it. (This is the \`LEFT JOIN\` from lesson 5, now anchored on a calendar so it keeps every day instead of every customer.)`,
+      prompt: `Now the payoff the calendar dim was built for: **a daily revenue report where days with zero sales still show up.** Take the first week of April and \`LEFT JOIN\` *from* \`dim_date\` to \`raw_payments\` — the calendar is the spine, so every day appears whether or not a payment landed on it. (This is the \`LEFT JOIN\` from lesson 7, now anchored on a calendar so it keeps every day instead of every customer.)`,
       starterSql: `SELECT
     d.date_day,
     d.day_name,
@@ -127,4 +127,4 @@ ORDER BY d.date_day;`,
   ],
 }
 
-export default lesson05b
+export default lesson07b
