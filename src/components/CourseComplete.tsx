@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { runQuery } from '../engine/duckdb'
+import schemaStar from '../sketches/schema-star.svg?raw'
 
 type Preview = { columns: string[]; rows: unknown[][] }
 
 /**
- * The mart finale. Shown when the last lesson's final step completes. Previews
- * both marts the learner ends up with — `mart_monthly_sales` (sliced by time,
- * built in L10 and pre-materialized in L11) and `mart_sales_by_category` (sliced
- * by an attribute, built in L11) — to make the "one star, two questions" point
+ * The course-complete finale. Shown when the last lesson's final step completes.
+ * Congratulates the learner, shows the star schema they built, and previews both
+ * reports they end up with — `rpt_monthly_sales` (sliced by time, built in L10
+ * and pre-materialized in L11) and `rpt_sales_by_category` (sliced by an
+ * attribute, built in L11) — to make the "one star, two questions" point
  * concrete. Surfaces two CTAs:
  *
  *   primary    → Build it in dbt: transform-lab.datagym.io
@@ -18,7 +20,7 @@ type Preview = { columns: string[]; rows: unknown[][] }
  */
 export default function CourseComplete() {
   const loadLesson = useGameStore((s) => s.loadLesson)
-  const [martPreview, setMartPreview] = useState<Preview | null>(null)
+  const [monthlyPreview, setMonthlyPreview] = useState<Preview | null>(null)
   const [categoryPreview, setCategoryPreview] = useState<Preview | null>(null)
   const [confetti] = useState(() => {
     const palette = ['var(--color-accent-orange)', 'var(--color-success)', 'var(--color-warning)']
@@ -31,10 +33,10 @@ export default function CourseComplete() {
   })
 
   useEffect(() => {
-    runQuery(`SELECT * FROM mart_monthly_sales ORDER BY 1`)
-      .then((r) => setMartPreview({ columns: r.columns, rows: r.rows }))
-      .catch(() => setMartPreview(null))
-    runQuery(`SELECT * FROM mart_sales_by_category ORDER BY gross_sales DESC`)
+    runQuery(`SELECT * FROM rpt_monthly_sales ORDER BY 1`)
+      .then((r) => setMonthlyPreview({ columns: r.columns, rows: r.rows }))
+      .catch(() => setMonthlyPreview(null))
+    runQuery(`SELECT * FROM rpt_sales_by_category ORDER BY gross_sales DESC`)
       .then((r) => setCategoryPreview({ columns: r.columns, rows: r.rows }))
       .catch(() => setCategoryPreview(null))
   }, [])
@@ -73,29 +75,61 @@ export default function CourseComplete() {
         fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.12em',
         fontWeight: 600, marginBottom: '8px',
       }}>
-        You built it
+        🎉 Course complete
       </div>
       <h3 style={{
         margin: '0 0 10px', color: 'var(--color-text)', fontFamily: 'var(--font-sans)',
         fontSize: '1.0625rem', fontWeight: 700, lineHeight: 1.3,
       }}>
-        One star, two questions
+        Nice work — you built the whole star
       </h3>
       <p style={{
         margin: '0 0 14px', color: 'var(--color-text-secondary)',
         fontSize: '0.875rem', lineHeight: 1.6,
       }}>
-        The same dims and facts you modeled answer both of these — sliced by time, and sliced by an
-        attribute — with no remodeling between them. Choosing a grain, classifying columns, building
-        dims and facts, joining without breaking grain: it all converges into marts a business user
-        queries in one line.
+        From five raw operational tables you declared the grain, classified every column, cleaned a
+        staging layer, built dimensions and facts, kept your joins grain-safe through fan-out, and
+        rolled it all into two analytics reports. That is the core of what an analytics engineer does
+        when turning raw data into something a business can trust.
       </p>
 
-      {martPreview && martPreview.rows.length > 0 && (
-        <MartTable label="mart_monthly_sales · by time" preview={martPreview} />
+      <div
+        role="img"
+        aria-label="The star schema built across the course: three fact tables (fact_orders, fact_order_items, fact_payments) in the center, joined by foreign keys to three dimensions (dim_customers, dim_products, dim_date)."
+        style={{
+          margin: '0 0 14px',
+          padding: '14px 12px',
+          background: 'var(--color-base)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: '8px',
+          color: 'var(--color-text-secondary)',
+        }}
+        dangerouslySetInnerHTML={{ __html: schemaStar }}
+      />
+
+      <p style={{
+        margin: '0 0 14px', color: 'var(--color-text-secondary)',
+        fontSize: '0.875rem', lineHeight: 1.6,
+      }}>
+        <strong style={{ color: 'var(--color-text)' }}>One star, two questions.</strong> The same dims
+        and facts answer both reports below — sliced by time, and sliced by an attribute — with no
+        remodeling between them. You modeled the data once; every new cut is a GROUP BY away.
+      </p>
+      <p style={{
+        margin: '0 0 14px', color: 'var(--color-text-secondary)',
+        fontSize: '0.8125rem', lineHeight: 1.6,
+      }}>
+        Where this goes next: in dbt, these same staging → dimension → fact → report steps become
+        version-controlled SQL models, and the grain checks you ran by hand become automated tests
+        that fail the build before a broken key ever reaches a dashboard. That's the data
+        transformation lab.
+      </p>
+
+      {monthlyPreview && monthlyPreview.rows.length > 0 && (
+        <ReportTable label="rpt_monthly_sales · by time" preview={monthlyPreview} />
       )}
       {categoryPreview && categoryPreview.rows.length > 0 && (
-        <MartTable label="mart_sales_by_category · by attribute" preview={categoryPreview} />
+        <ReportTable label="rpt_sales_by_category · by attribute" preview={categoryPreview} />
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -138,7 +172,7 @@ export default function CourseComplete() {
   )
 }
 
-function MartTable({ label, preview }: { label: string; preview: Preview }) {
+function ReportTable({ label, preview }: { label: string; preview: Preview }) {
   return (
     <div style={{ marginBottom: '14px', overflowX: 'auto' }}>
       <div style={{

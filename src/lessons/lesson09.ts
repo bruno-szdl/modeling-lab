@@ -1,9 +1,8 @@
 import type { Lesson } from '../engine/types'
 import {
   lastQuerySucceeded,
-  lastQueryScalarEquals,
   lastQueryContainsRow,
-  lastQueryHasColumns,
+  lastQueryRowCountEquals,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson09.svg?raw'
@@ -22,6 +21,9 @@ import sketch from '../sketches/lesson09.svg?raw'
  *   paid_revenue (SUM amount, payments grain)                      = 1060
  *   paid_orders (COUNT DISTINCT order_id)                          = 5
  *   AOV = 1060 / 5                                                 = 212
+ *   per-month AOV: 2024-03 = 460/2 = 230, 2024-04 = 600/3 = 200
+ *     -> averaging the two (215) != true blended AOV (212): the
+ *     non-additivity demo (step aov-per-month + aov-additivity).
  */
 const lesson09: Lesson = {
   id: 9,
@@ -40,8 +42,7 @@ Then there's **additivity** — whether a metric survives being summed across di
 - **Semi-additive**: adds across some dimensions but not others. An account balance adds across customers (everyone's balance today) but *not* across days (you don't sum Monday's and Tuesday's balance to get a two-day balance).
 - **Non-additive**: combining requires recomputing from ingredients. Every ratio — AOV, conversion rate, average price. You cannot sum or average them.
 
-The practical consequence, which the mart in Lesson 10 depends on: **a mart stores the *ingredients* of a ratio, never the ratio itself.** Keep \`paid_revenue\` and \`paid_orders\`; let every consumer recompute AOV at whatever grouping they need.`,
-  dbtBridge: `In dbt, metric definitions live in the **Semantic Layer** (MetricFlow): each metric declares its measure, filter, and grain once, and the framework computes it at any grouping a query asks for — respecting the grain automatically, so fan-out can't sneak back in and a ratio is never accidentally summed.`,
+The practical consequence, which the report in Lesson 10 depends on: **a report stores the *ingredients* of a ratio, never the ratio itself.** Keep \`paid_revenue\` and \`paid_orders\`; let every consumer recompute AOV at whatever grouping they need.`,
   seeds: DATASHOP_SEEDS,
   // The learner built these facts in L5; pre-build them so this lesson can run
   // metric queries against clean facts (no corrupt dim here).
@@ -58,35 +59,25 @@ The practical consequence, which the mart in Lesson 10 depends on: **a mart stor
   steps: [
     {
       kind: 'sql',
-      id: 'gross-sales',
-      prompt: `Compute **gross sales**, defined as "sum the item amounts of every line on a non-cancelled order". Its home is \`fact_order_items\` (grain: one line item) — that's the right grain for a revenue total from items. The JOIN to \`fact_orders\` only filters; it can't fan out, because \`order_id\` is that table's unique PK.`,
-      starterSql: `SELECT SUM(i.item_amount) AS gross_sales
-FROM fact_order_items i
-JOIN fact_orders o ON o.order_id = i.order_id
-WHERE o.order_status <> 'cancelled';`,
+      id: 'two-metrics',
+      prompt: `Compute two *different* metrics side by side. **gross_sales** is "sum the item amounts of every line on a non-cancelled order" — its home is \`fact_order_items\` (grain: one line item). **paid_revenue** is "sum \`amount\` where \`payment_status = 'paid'\`" — its home is \`fact_payments\` (grain: one payment). The starter computes each as its own subquery; run it and compare the two numbers.`,
+      starterSql: `SELECT
+    (SELECT SUM(i.item_amount)
+       FROM fact_order_items i
+       JOIN fact_orders o ON o.order_id = i.order_id
+       WHERE o.order_status <> 'cancelled') AS gross_sales,
+    (SELECT SUM(amount)
+       FROM fact_payments
+       WHERE payment_status = 'paid')        AS paid_revenue;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryHasColumns(s, ['gross_sales']) &&
-        lastQueryScalarEquals(s, 1060),
-      explanation: `**1060.** The definition is deliberate: it *includes* refunded orders (the sale happened; a refund is a separate metric) and *excludes* cancelled ones (those never happened). The SUM runs at the grain of \`fact_order_items\`, and the FK → PK join to \`fact_orders\` matched one order per item — so nothing inflated. Definition, formula, grain: all three pinned down before the number existed.`,
-    },
-    {
-      kind: 'sql',
-      id: 'paid-revenue',
-      prompt: `Now **paid revenue**: sum \`amount\` from \`fact_payments\` where \`payment_status = 'paid'\`. Different fact, different definition, grain of "one payment" — and, for this curated dataset, the same number as gross sales.`,
-      starterSql: `SELECT SUM(amount) AS paid_revenue
-FROM fact_payments
-WHERE payment_status = 'paid';`,
-      validate: (s) =>
-        lastQuerySucceeded(s) &&
-        lastQueryHasColumns(s, ['paid_revenue']) &&
-        lastQueryScalarEquals(s, 1060),
-      explanation: `**1060 again** — but don't be fooled by the coincidence. "Gross sales" comes from the items fact; "paid revenue" comes from the payments fact. **A metric is defined by where it lives, not by the number it happens to produce.** They answer different business questions ("what did we sell?" vs "what did we collect?") and in the wild they'd diverge the moment a sale goes unpaid or a payment covers multiple orders.`,
+        lastQueryContainsRow(s, { gross_sales: 1060, paid_revenue: 1060 }),
+      explanation: `**Both land on 1060 — and that coincidence is the whole point.** They are not the same metric. \`gross_sales\` lives in \`fact_order_items\` and answers *"what did we sell?"*; \`paid_revenue\` lives in \`fact_payments\` and answers *"what did we collect?"*. Each is pinned down by its **definition, formula, and grain** — by where it lives — never by the number it happens to print. (gross_sales deliberately *includes* refunded orders, since the sale happened, and *excludes* cancelled ones, which never did.) In this curated dataset the two match; the day a sale goes unpaid or one payment covers two orders, they diverge — and a team that had conflated them by their equal value would ship the wrong number.`,
     },
     {
       kind: 'checkpoint',
       id: 'classify-additivity',
-      question: `You're deciding what to pre-compute in a mart. Which of these is **non-additive** — combining it requires recomputing from ingredients, so it must NOT be stored as a finished number?`,
+      question: `You're deciding what to pre-compute in a report. Which of these is **non-additive** — combining it requires recomputing from ingredients, so it must NOT be stored as a finished number?`,
       options: [
         'Total revenue — `SUM` of paid amounts',
         'Units sold — `SUM` of quantity',
@@ -116,20 +107,40 @@ WHERE payment_status = 'paid';`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
         lastQueryContainsRow(s, { paid_revenue: 1060, paid_orders: 5, aov: 212 }),
-      explanation: `**1060 revenue ÷ 5 paid orders = 212 AOV.** Note the \`COUNT(DISTINCT order_id)\`: there are 5 paid *payments* mapping to 5 distinct *orders*, so \`COUNT(*)\` would be wrong the moment an order had two payment rows. The crucial habit is what a mart *stores*: not the \`aov\` column, but the two **ingredients** (\`paid_revenue\` and \`paid_orders\`). The ratio gets recomputed at query time — which is exactly what makes the next question answerable.`,
+      explanation: `**1060 revenue ÷ 5 paid orders = 212 AOV.** Note the \`COUNT(DISTINCT order_id)\`: there are 5 paid *payments* mapping to 5 distinct *orders*, so \`COUNT(*)\` would be wrong the moment an order had two payment rows. The crucial habit is what a report *stores*: not the \`aov\` column, but the two **ingredients** (\`paid_revenue\` and \`paid_orders\`). The ratio gets recomputed at query time — which is exactly what makes the next step possible.`,
+    },
+    {
+      kind: 'sql',
+      id: 'aov-per-month',
+      prompt: `Now *watch* a ratio break when you slice it. Compute AOV **per month**: \`paid_revenue\`, \`paid_orders\`, and their ratio, grouped by month. Two rows come back — notice how far apart the two monthly AOVs are.`,
+      starterSql: `SELECT
+    strftime(payment_date, '%Y-%m')        AS month,
+    SUM(amount)                            AS paid_revenue,
+    COUNT(DISTINCT order_id)               AS paid_orders,
+    SUM(amount) / COUNT(DISTINCT order_id) AS aov
+FROM fact_payments
+WHERE payment_status = 'paid'
+GROUP BY strftime(payment_date, '%Y-%m')
+ORDER BY month;`,
+      validate: (s) =>
+        lastQuerySucceeded(s) &&
+        lastQueryRowCountEquals(s, 2) &&
+        lastQueryContainsRow(s, { month: '2024-03', paid_revenue: 460, paid_orders: 2, aov: 230 }) &&
+        lastQueryContainsRow(s, { month: '2024-04', paid_revenue: 600, paid_orders: 3, aov: 200 }),
+      explanation: `**March AOV 230, April AOV 200.** Now the trap springs: the *overall* AOV is **not** the average of these two. Average them — (230 + 200) / 2 = **215** — and you get the wrong answer. The real figure is total revenue over total orders: 1060 / 5 = **212**, the number from the step before. 215 ≠ 212 because April's 3 orders deserve more weight than March's 2, and a plain average ignores that. A ratio is **non-additive**: you cannot sum or average it across a dimension. Store its ingredients and recompute — every time.`,
     },
     {
       kind: 'checkpoint',
       id: 'aov-additivity',
-      question: `March AOV was \\$200; April AOV was \\$250. What is the combined March-and-April AOV?`,
+      question: `You just saw it: averaging March's 230 and April's 200 gives 215, but the true combined AOV is 212. Why can averaging monthly ratios be *wildly* wrong, not just a little off?`,
       options: [
-        '\\$225 — the average of the monthly AOVs',
-        '\\$450 — the sum',
-        'Can\'t tell from the AOVs alone; you have to recompute from total paid_revenue and total paid_orders for the two months combined',
-        'Depends on which month had more orders, but somewhere between \\$200 and \\$250',
+        'It can\'t — 215 is close enough to 212 to treat them as equal',
+        'Because months can have very different order *counts*: a month with 1 order at \\$200 and a month with 1000 orders at \\$250 average to \\$225, but the true blended AOV is nearly \\$250. The bigger the imbalance, the bigger the error.',
+        'Because DuckDB rounds division differently each month',
+        'Because revenue itself is non-additive',
       ],
-      correctIndex: 2,
-      explanation: `AOV is a **ratio**, and ratios are **non-additive**. Imagine March had 1 order at \\$200 and April had 1000 orders at \\$250 — the combined AOV is much closer to \\$250 than to \\$225 because April dominates the weighting. The only correct answer is (March revenue + April revenue) ÷ (March orders + April orders). **This is why marts store the ingredients of ratios, not the ratios themselves** — and it's the design decision you'll make concrete when you build the monthly mart next.`,
+      correctIndex: 1,
+      explanation: `AOV is a **ratio**, and ratios are **non-additive** — and the error isn't fixed, it scales with how lopsided the weighting is. Here March and April are close in size, so 215 vs 212 is a small gap; with a 1-vs-1000 order split the gap blows up. The only correct combination is (sum of revenue) ÷ (sum of orders), never the average of the ratios. **This is why a report stores the ingredients of ratios, not the ratios themselves** — the design decision you'll make concrete when you build the monthly report next.`,
     },
   ],
 }

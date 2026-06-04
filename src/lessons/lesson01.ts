@@ -3,8 +3,7 @@ import {
   lastQuerySucceeded,
   lastQueryRowCountEquals,
   lastQueryRowHasValue,
-  lastQueryHasColumns,
-  lastQueryContainsRow,
+  lastQueryRowValuesEqual,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson01.svg?raw'
@@ -40,7 +39,6 @@ That answer is the **grain**. Get it wrong and your numbers will quietly drift �
 Look at \`raw_orders\` shown below — six rows, four columns. Before you read on, can you answer the question for *this* table? "One row in \`raw_orders\` represents…?"
 
 You'll work through three tables this lesson — \`raw_orders\`, then \`raw_order_items\`, then \`raw_payments\` — and learn the one objective test that proves a column is a **primary key**: \`COUNT(*) = COUNT(DISTINCT key)\`.`,
-  dbtBridge: `dbt's \`unique\` test checks this same property, just phrased as "no key appears twice" (\`GROUP BY key HAVING COUNT(*) > 1\` must return zero rows) — [data transformation lab](https://transform-lab.datagym.io) is where you meet it properly.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     // ── raw_orders ──────────────────────────────────────────────────────────
@@ -69,8 +67,7 @@ FROM raw_orders;`,
 FROM raw_orders;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryHasColumns(s, ['total_rows', 'distinct_order_ids']) &&
-        lastQueryRowHasValue(s, 'total_rows', 6, 'distinct_order_ids', 6),
+        lastQueryRowValuesEqual(s, [6, 6]),
       explanation: `Both are **6** — they match, so \`order_id\` is unique across all rows. Combined with not-null (an \`order_id\` always exists for an order), that's the operational definition of a primary key. The grain of \`raw_orders\` is confirmed: **one row = one order.**
 
 One caveat worth keeping: passing this test makes a column a *candidate* key — uniqueness is **necessary, not sufficient.** A column can be unique by accident (if every \`amount\` in some table happens to differ today, that doesn't make \`amount\` a key — one more row could collide tomorrow). A real primary key is the column whose *job* is to identify the row: stable, meaningful, and unique **by design**, not by coincidence.`,
@@ -129,7 +126,7 @@ FROM raw_payments;`,
 FROM raw_payments;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        lastQueryContainsRow(s, { total_rows: 7, distinct_payment_ids: 7, distinct_orders: 6 }),
+        lastQueryRowValuesEqual(s, [7, 7, 6]),
       explanation: `**7, 7, 6.** \`payment_id\` is unique (it's the PK — total matches distinct), but only **6** distinct \`order_id\` values appear across 7 rows. Meaning: **one of the orders has more than one payment row.** The grain of \`raw_payments\` is **one payment**, not "one order" — don't confuse them.`,
     },
     {

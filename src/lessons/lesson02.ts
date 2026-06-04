@@ -30,9 +30,13 @@ const lesson02: Lesson = {
   id: 2,
   title: 'Entities, events, column roles',
   schemaSketch: { svg: sketch, alt: 'Two boxes side by side: raw_customers (an entity, no date column) and raw_payments (an event, with payment_date highlighted)' },
-  concept: `Some tables describe **things that exist** — customers, products. Those are **entities**. Others describe **things that happened** — orders, payments. Those are **events**. A third kind shows up too: tables that describe **details of an event** — the line items on an order. They aren't events themselves, but they only exist because one happened.
+  concept: `Tables come in three kinds:
 
-A quick heuristic: events have a date. Entities don't.
+- **Entity** — a thing that *exists*: customers, products. A stable, small set of "things," with no "this happened on…" column.
+- **Event** — a thing that *happened*: orders, payments. Every row is tied to a moment, so it always carries a date.
+- **Detail of an event** — the line items on an order. Not an event itself, but it only exists because one happened.
+
+A quick heuristic: events have a date, entities don't (but watch out — not every date column makes a table an event).
 
 Inside each table, every column plays one of three roles:
 
@@ -41,7 +45,6 @@ Inside each table, every column plays one of three roles:
 - **Metric** — something you measure: \`quantity\`, \`amount\`. You aggregate it.
 
 Why does this matter? It's the mental map for the next three lessons: **entity → dim, event → fact, attribute → dim column, metric → fact column.**`,
-  dbtBridge: `In dbt, a column's role picks its test: \`unique\`/\`not_null\` on identifiers, \`accepted_values\` on categorical attributes, \`relationships\` on foreign keys.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {
@@ -127,7 +130,33 @@ ORDER BY payments DESC;`,
         lastQueryHasColumns(s, ['payment_status', 'total_amount']) &&
         lastQueryContainsRow(s, { payment_status: 'paid', payments: 5, total_amount: 1060 }) &&
         lastQueryContainsRow(s, { payment_status: 'refunded', total_amount: -200 }),
-      explanation: `**paid 1060, failed 0, refunded -200.** You just used the two roles together: you \`GROUP BY\` the **attribute** (\`payment_status\`) and \`SUM\` the **metric** (\`amount\`). Swap them and it breaks — \`SUM(payment_status)\` is meaningless, and \`GROUP BY amount\` would shatter the table into one group per distinct price. \`payment_id\` is *numeric* but it's an identifier, so \`SUM(payment_id)\` is gibberish too. The mental rule: **a metric is what you'd put on the y-axis of a chart; an attribute is what you'd put on the x-axis.**`,
+      explanation: `**paid 1060, failed 0, refunded -200.** You just used the two roles together: you \`GROUP BY\` the **attribute** (\`payment_status\`) and \`SUM\` the **metric** (\`amount\`). Swap them and it breaks — \`SUM(payment_status)\` is meaningless, and \`GROUP BY amount\` would shatter the table into one group per distinct price. And it's the *role* that decides, not the datatype: \`payment_id\` here is text like \`PAY001\`, so SQL won't even let you \`SUM\` it — but even where a system stores IDs as plain integers, adding them is just as meaningless. The mental rule: **a metric is what you'd put on the y-axis of a chart; an attribute is what you'd put on the x-axis.**`,
+    },
+    {
+      kind: 'checkpoint',
+      id: 'numeric-id-trap',
+      question: `Some payment systems store \`payment_id\` as a plain integer (1, 2, 3, …) instead of text like \`PAY001\`. If yours did, what would \`SUM(payment_id)\` tell you?`,
+      options: [
+        'Total revenue across all payments',
+        'Nothing meaningful — `payment_id` is an identifier. It is a label that happens to be a number; adding labels together is gibberish. Revenue comes from `SUM(amount)`.',
+        'The number of payments, since each has one id',
+        'The id of the most recent payment',
+      ],
+      correctIndex: 1,
+      explanation: `A column's **role** decides what you can do with it, not its datatype. Identifiers — numeric or text — are for counting, grouping, and joining, never summing. \`amount\` is the metric you aggregate; \`payment_id\` only points at a row. "Is it a number?" is the trap question; "what is its job?" is the real one.`,
+    },
+    {
+      kind: 'checkpoint',
+      id: 'entity-event-map',
+      question: `Pulling it together with the map *entity → dim, event → fact*: which pair of raw tables becomes **dimensions**?`,
+      options: [
+        '`raw_orders` and `raw_payments`',
+        '`raw_customers` and `raw_products`',
+        '`raw_order_items` and `raw_payments`',
+        '`raw_customers` and `raw_orders`',
+      ],
+      correctIndex: 1,
+      explanation: `Entities (customers, products) describe things that *exist* → **dims**. Events (orders, payments) and the detail of an event (order_items) describe things that *happened* → **facts**. That mapping is exactly what the next lessons build: \`dim_customers\` / \`dim_products\` in Lesson 4, then \`fact_orders\` / \`fact_order_items\` / \`fact_payments\` in Lesson 5.`,
     },
   ],
 }

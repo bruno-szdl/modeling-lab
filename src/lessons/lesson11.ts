@@ -11,7 +11,7 @@ import sketch from '../sketches/lesson11.svg?raw'
 /**
  * Lesson 11 — Slice by any dimension (the capstone payoff).
  *
- * Lesson 10 built mart_monthly_sales: the facts sliced by *time*. But the
+ * Lesson 10 built rpt_monthly_sales: the facts sliced by *time*. But the
  * whole point of building dims + facts (a star) is that the SAME facts can
  * be sliced by any *attribute* with a one-line GROUP BY swap. Until now the
  * dims the learner built in L4 were never used in a deliverable; this lesson
@@ -27,8 +27,8 @@ import sketch from '../sketches/lesson11.svg?raw'
  *   Accessory  280  (P003/P004)   units 6
  *   total     1060  = the Lesson 9 gross_sales — the dim join inflates nothing
  *
- * preMaterialize rebuilds the L4/L5 model layer AND the L10 monthly mart, so
- * the finale (<CourseComplete />) can show both marts side by side: same
+ * preMaterialize rebuilds the L4/L5 dimensional model AND the L10 monthly report, so
+ * the finale (<CourseComplete />) can show both reports side by side: same
  * star, two different business questions.
  */
 const lesson11: Lesson = {
@@ -38,16 +38,15 @@ const lesson11: Lesson = {
     svg: sketch,
     alt: 'fact_order_items joined to dim_products on product_id (FK to PK), then grouped by the category attribute into a two-row result: Course 780, Accessory 280. Caption: same facts, sliced by an attribute.',
   },
-  concept: `The monthly mart answered one shape of question: *how are we doing over time?* But stakeholders ask just as often **what** is doing well — which products, which categories, which regions, which customer segments. This is the moment the star schema you built finally pays off.
+  concept: `The monthly report answered one shape of question: *how are we doing over time?* But stakeholders ask just as often **what** is doing well — which products, which categories, which regions, which customer segments. This is the moment the star schema you built finally pays off.
 
 The move is the FK→PK join from Lesson 5, now put to work: the **metric** lives once in the fact (\`item_amount\` in \`fact_order_items\`), the **attribute** lives once in the dim (\`category\` in \`dim_products\`), and you join the two on the key to slice the metric by the attribute. Want a different cut? Swap one column in the \`GROUP BY\`. You modeled the data once; now you can slice it forever, and every cut agrees because each attribute has exactly one home.
 
 This is the return on every decision you've made: declare the grain, classify the columns, push attributes into dims, keep facts lean, join without breaking grain. Do that, and "revenue by category", "revenue by price band", "revenue by state" are all one \`GROUP BY\` away — no new modeling, no duplicated rules, no drift.`,
-  dbtBridge: `This is *why* dims and facts are their own models in \`marts/\`: dozens of downstream reports join to the same \`dim_products\`, so "category" means one thing everywhere. Define the grain and the attribute once; let every consumer slice it however they need.`,
   seeds: DATASHOP_SEEDS,
-  // Rebuild the full model layer the learner assembled across L4/L5, plus the
-  // L10 monthly mart, so this lesson can slice the star and the finale can show
-  // both marts. Order matters: facts before the mart that aggregates them.
+  // Rebuild the full dimensional model the learner assembled across L4/L5, plus the
+  // L10 monthly report, so this lesson can slice the star and the finale can show
+  // both reports. Order matters: facts before the report that aggregates them.
   preMaterialize: [
     `CREATE OR REPLACE TABLE dim_products AS
        SELECT product_id, product_name, category, list_price,
@@ -61,7 +60,7 @@ This is the return on every decision you've made: declare the grain, classify th
        FROM raw_order_items`,
     `CREATE OR REPLACE TABLE fact_payments AS
        SELECT * FROM raw_payments`,
-    `CREATE OR REPLACE TABLE mart_monthly_sales AS
+    `CREATE OR REPLACE TABLE rpt_monthly_sales AS
        WITH items_monthly AS (
          SELECT strftime(o.order_date, '%Y-%m') AS month, SUM(i.item_amount) AS gross_sales
          FROM fact_order_items i JOIN fact_orders o ON o.order_id = i.order_id
@@ -134,8 +133,8 @@ ORDER BY gross_sales DESC;`,
     {
       kind: 'sql',
       id: 'build-category-mart',
-      prompt: `Persist it as a mart. Build \`mart_sales_by_category\` with two metrics per category: \`gross_sales\` and \`units_sold\` (the total quantity). The starter has \`gross_sales\`; add \`units_sold\`.`,
-      starterSql: `CREATE OR REPLACE TABLE mart_sales_by_category AS
+      prompt: `Persist it as a report. Build \`rpt_sales_by_category\` with two metrics per category: \`gross_sales\` and \`units_sold\` (the total quantity). The starter has \`gross_sales\`; add \`units_sold\`.`,
+      starterSql: `CREATE OR REPLACE TABLE rpt_sales_by_category AS
 SELECT
     p.category,
     SUM(i.item_amount) AS gross_sales
@@ -147,9 +146,9 @@ WHERE o.order_status <> 'cancelled'
 GROUP BY p.category
 ORDER BY gross_sales DESC;
 
-SELECT * FROM mart_sales_by_category ORDER BY gross_sales DESC;`,
+SELECT * FROM rpt_sales_by_category ORDER BY gross_sales DESC;`,
       hint: `Add \`, SUM(i.quantity) AS units_sold\` after the \`gross_sales\` line (mind the comma).`,
-      solution: `CREATE OR REPLACE TABLE mart_sales_by_category AS
+      solution: `CREATE OR REPLACE TABLE rpt_sales_by_category AS
 SELECT
     p.category,
     SUM(i.item_amount) AS gross_sales,
@@ -161,23 +160,23 @@ WHERE o.order_status <> 'cancelled'
 GROUP BY p.category
 ORDER BY gross_sales DESC;
 
-SELECT * FROM mart_sales_by_category ORDER BY gross_sales DESC;`,
+SELECT * FROM rpt_sales_by_category ORDER BY gross_sales DESC;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        tableExists(s, 'mart_sales_by_category') &&
+        tableExists(s, 'rpt_sales_by_category') &&
         lastQueryRowCountEquals(s, 2) &&
         lastQueryContainsRow(s, { category: 'Course', gross_sales: 780, units_sold: 5 }) &&
         lastQueryContainsRow(s, { category: 'Accessory', gross_sales: 280, units_sold: 6 }),
-      explanation: `\`mart_sales_by_category\` is the **dimension-sliced sibling** of \`mart_monthly_sales\` — same facts, a different cut. And it surfaces a real insight the monthly mart can't: **Accessory moves more units (6) but far less revenue (280)** than Course (5 units, 780). That's the kind of question the star answers in one query. Both marts came from the *same* \`fact_order_items\` and \`dim_products\` — you didn't remodel anything to ask a new question.`,
+      explanation: `\`rpt_sales_by_category\` is the **dimension-sliced sibling** of \`rpt_monthly_sales\` — same facts, a different cut. And it surfaces a real insight the monthly report can't: **Accessory moves more units (6) but far less revenue (280)** than Course (5 units, 780). That's the kind of question the star answers in one query. Both reports came from the *same* \`fact_order_items\` and \`dim_products\` — you didn't remodel anything to ask a new question.`,
     },
     {
       kind: 'checkpoint',
       id: 'spine-keeps-empty-category',
-      question: `Marketing launches a brand-new **Gift Cards** category next month, but nothing has sold yet. With the query you just wrote, when does *Gift Cards* first show up as a row in this mart?`,
+      question: `Marketing launches a brand-new **Gift Cards** category next month, but nothing has sold yet. With the query you just wrote, when does *Gift Cards* first show up as a row in this report?`,
       options: [
         'Immediately — `dim_products` already lists the category',
         'Only after its first sale — the query is anchored on `fact_order_items`, so a category with no items produces no row. To show it at 0 from day one, anchor on `dim_products` and `LEFT JOIN` the fact (the spine pattern from the calendar dim and from Eve in Lesson 7).',
-        'Never — a mart can\'t represent a category with zero sales',
+        'Never — a report can\'t represent a category with zero sales',
         'Immediately, as long as you wrap the SUM in `COALESCE`',
       ],
       correctIndex: 1,

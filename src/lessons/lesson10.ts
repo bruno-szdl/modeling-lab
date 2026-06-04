@@ -9,16 +9,16 @@ import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson10.svg?raw'
 
 /**
- * Lesson 10 — Build the mart (the monthly mart).
+ * Lesson 10 — Build the report (the monthly report).
  *
- * Maps to notebook 06. The first of the two marts. Each fact is
+ * Maps to notebook 06. The first of the two reports. Each fact is
  * aggregated at month grain in its own CTE; the rolled-up CTEs are joined
  * on the month key. No fan-out because nothing is at a finer grain at the
  * join — Lessons 8-9, applied. (The finale screen, <CourseComplete />,
  * is triggered by L11, not here — L11 is the last lesson and pre-materializes
- * this mart so both marts can be shown side by side.)
+ * this report so both reports can be shown side by side.)
  *
- * Expected mart shape (mart_monthly_sales, 2 rows):
+ * Expected report shape (rpt_monthly_sales, 2 rows):
  *   month   | gross_sales | paid_revenue | paid_orders | refunded_amount | delivered_orders | cancelled_orders | refunded_orders
  *   2024-03 |     460     |     460      |      2      |        0        |        2         |        1         |        0
  *   2024-04 |     600     |     600      |      3      |       200       |        2         |        0         |        1
@@ -26,26 +26,27 @@ import sketch from '../sketches/lesson10.svg?raw'
  * Critical fan-out check: paid_orders is COUNT DISTINCT order_id WHERE
  * status='paid' in fact_payments. Two paid orders in March (PAY001/O001,
  * PAY002/O002) and three in April (PAY004/O004, PAY005/O005, PAY006/O006),
- * total 5. SUM(paid_revenue)/SUM(paid_orders) across the mart = 1060/5 =
+ * total 5. SUM(paid_revenue)/SUM(paid_orders) across the report = 1060/5 =
  * 212 = the Lesson 9 AOV. Ingredients survive aggregation; ratios don't.
  *
- * Refunded amounts: PAY007 has amount=-200 (refunded); the mart expresses
+ * Refunded amounts: PAY007 has amount=-200 (refunded); the report expresses
  * the refunded_amount as a POSITIVE 200 via SUM(-amount) on refunded rows.
  */
 const lesson10: Lesson = {
   id: 10,
-  title: 'Build the mart',
-  schemaSketch: { svg: sketch, alt: 'Three raw facts (order_items, payments, orders) flow into three pre-aggregated CTEs at month grain, which then merge into a single mart_monthly_sales table with 2 rows' },
-  concept: `Everything you've practiced converges here — this is the top of the layering you've been climbing: \`raw → models (dims + facts) → mart\`. The mart is the **product**. The \`fact_*\` and \`dim_*\` model layer holds the *inputs* — designed for engineering correctness. The mart is designed for **answering business questions in one query**: a stakeholder writes \`SELECT * FROM mart_monthly_sales\` and the answer is right there.
+  title: 'Build the report',
+  schemaSketch: { svg: sketch, alt: 'Three raw facts (order_items, payments, orders) flow into three pre-aggregated CTEs at month grain, which then merge into a single rpt_monthly_sales table with 2 rows' },
+  concept: `Everything you've practiced converges here — this is the top of the layering you've been climbing: \`raw → staging → marts\`. The aggregated **report** is the product. Your \`dim_*\` and \`fact_*\` dimensional model holds the *inputs* — designed for engineering correctness. The report that sits on top of them is designed for **answering business questions in one query**: a stakeholder writes \`SELECT * FROM rpt_monthly_sales\` and the answer is right there.
 
-Three properties of a good mart:
+A note on layering: dbt keeps dims, facts, and tables like this one together in one **marts** layer — so the dims and facts you built are *already* marts, not a step below them. This final aggregated table is a **report** (we prefix it \`rpt_\`): a consumption-ready table built on top of the dimensional model, living in the same marts layer as the dims and facts it reads from.
 
-1. **Grain matches the question.** Stakeholders ask monthly questions → the mart has one row per month.
-2. **Pre-aggregated at that grain.** No downstream JOINs needed. The mart is the answer, not the ingredients of an answer.
+Three properties of a good report:
+
+1. **Grain matches the question.** Stakeholders ask monthly questions → the report has one row per month.
+2. **Pre-aggregated at that grain.** No downstream JOINs needed. The report is the answer, not the ingredients of an answer.
 3. **Ingredients of ratios, not the ratios themselves.** Store \`paid_revenue\` and \`paid_orders\`; let consumers recompute AOV at whatever grouping they want. (Lesson 9's discipline, made concrete.)
 
-Build strategy: **aggregate each fact at the mart's grain first, then join the rolled-up tables.** This is the only fan-out-proof shape for combining multiple facts. You'll build three CTEs (one per fact: items, payments, orders), each pre-aggregated to month grain, then \`LEFT JOIN\` them on \`month\`.`,
-  dbtBridge: `Heads up on vocabulary: dbt's \`marts/\` folder is broader than this lab's word "mart" — your \`dim_*\` and \`fact_*\` models live there too. We've reserved "mart" for the final aggregated table a stakeholder queries; dbt would call this one a *report* or *aggregate* mart and keep it alongside the dims and facts. Either way it's materialized as a \`table\`, so a dashboard reads a pre-computed snapshot instead of re-running the whole CTE graph on every refresh.`,
+Build strategy: **aggregate each fact at the report's grain first, then join the rolled-up tables.** This is the only fan-out-proof shape for combining multiple facts. You'll build three CTEs (one per fact: items, payments, orders), each pre-aggregated to month grain, then \`LEFT JOIN\` them on \`month\`.`,
   seeds: DATASHOP_SEEDS,
   // L5 built these; L10 aggregates them at month grain.
   preMaterialize: [
@@ -62,7 +63,7 @@ Build strategy: **aggregate each fact at the mart's grain first, then join the r
     {
       kind: 'sql',
       id: 'items-monthly',
-      prompt: `Step 1 of the mart build: aggregate \`fact_order_items\` to month grain. One row per month, with \`gross_sales\` = sum of \`item_amount\` for non-cancelled orders. You should see exactly **2 rows**.`,
+      prompt: `Step 1 of the report build: aggregate \`fact_order_items\` to month grain. One row per month, with \`gross_sales\` = sum of \`item_amount\` for non-cancelled orders. You should see exactly **2 rows**.`,
       starterSql: `SELECT
     strftime(o.order_date, '%Y-%m') AS month,
     SUM(i.item_amount)              AS gross_sales
@@ -76,7 +77,7 @@ ORDER BY month;`,
         lastQueryRowCountEquals(s, 2) &&
         lastQueryContainsRow(s, { month: '2024-03', gross_sales: 460 }) &&
         lastQueryContainsRow(s, { month: '2024-04', gross_sales: 600 }),
-      explanation: `**March 460, April 600** — gross sales per month, at the right grain (one row per month), with cancelled orders excluded. This is the first CTE of the mart. Note the JOIN to \`fact_orders\` is purely to filter; it doesn't change the grain because we're grouping by the month. (We derive \`month\` inline with \`strftime\` here. When a report needs richer calendar attributes — quarter, weekday — or has to show months with *zero* activity, you'd join \`dim_date\` instead: the calendar spine from the side quest. Inline is fine when every period already has data, as it does here.)`,
+      explanation: `**March 460, April 600** — gross sales per month, at the right grain (one row per month), with cancelled orders excluded. This is the first CTE of the report. Note the JOIN to \`fact_orders\` is purely to filter; it doesn't change the grain because we're grouping by the month. (We derive \`month\` inline with \`strftime\` here. When a report needs richer calendar attributes — quarter, weekday — or has to show months with *zero* activity, you'd join \`dim_date\` instead: the calendar spine from the side quest. Inline is fine when every period already has data, as it does here.)`,
     },
     {
       kind: 'sql',
@@ -105,7 +106,7 @@ ORDER BY month;`,
         lastQueryRowCountEquals(s, 2) &&
         lastQueryContainsRow(s, { month: '2024-03', paid_revenue: 460, paid_orders: 2, refunded_amount: 0 }) &&
         lastQueryContainsRow(s, { month: '2024-04', paid_revenue: 600, paid_orders: 3, refunded_amount: 200 }),
-      explanation: `March: 460 revenue across 2 paid orders, 0 refunded. April: 600 across 3 paid orders, 200 refunded (PAY007 on O006). Notice \`paid_orders\` lives in the mart alongside \`paid_revenue\` — they're the two **ingredients** of AOV. The mart will store both; the AOV itself stays out.`,
+      explanation: `March: 460 revenue across 2 paid orders, 0 refunded. April: 600 across 3 paid orders, 200 refunded (PAY007 on O006). Notice \`paid_orders\` lives in the report alongside \`paid_revenue\` — they're the two **ingredients** of AOV. The report will store both; the AOV itself stays out.`,
     },
     {
       kind: 'sql',
@@ -133,17 +134,17 @@ ORDER BY month;`,
       options: [
         'It\'s faster — DuckDB optimizes pre-aggregated CTEs better than raw joins',
         'To avoid fan-out: joining the raw facts together would multiply rows across grains and silently break every SUM. Pre-aggregating to a shared grain makes the join safe.',
-        'Because the mart needs all three sources',
+        'Because the report needs all three sources',
         'It makes the SQL more readable',
       ],
       correctIndex: 1,
-      explanation: `This is the exact discipline you proved in Lesson 8: \`SUM(p.amount)\` after a JOIN to items returned 1800, not 1060, because the JOIN fanned each payment across line items. The cure is to **never combine facts at different grains**. Aggregate each one to the shared grain (\`month\`), and *then* combine the rectangles — at that point every table has one row per month and the JOIN can't multiply anything. This is the universal mart build pattern.`,
+      explanation: `This is the exact discipline you proved in Lesson 8: \`SUM(p.amount)\` after a JOIN to items returned 1800, not 1060, because the JOIN fanned each payment across line items. The cure is to **never combine facts at different grains**. Aggregate each one to the shared grain (\`month\`), and *then* combine the rectangles — at that point every table has one row per month and the JOIN can't multiply anything. This is the universal report build pattern.`,
     },
     {
       kind: 'sql',
       id: 'build-the-mart',
-      prompt: `**The final step.** Wrap your three monthly aggregations as CTEs, \`LEFT JOIN\` them all on \`month\`, and persist the result as \`mart_monthly_sales\`. The \`COALESCE\` wraps protect against months where one of the three sources happened to be empty (defensive — they all have data here, but the pattern generalizes).`,
-      starterSql: `CREATE OR REPLACE TABLE mart_monthly_sales AS
+      prompt: `**The final step.** Wrap your three monthly aggregations as CTEs, \`LEFT JOIN\` them all on \`month\`, and persist the result as \`rpt_monthly_sales\`. The \`COALESCE\` wraps protect against months where one of the three sources happened to be empty (defensive — they all have data here, but the pattern generalizes).`,
+      starterSql: `CREATE OR REPLACE TABLE rpt_monthly_sales AS
 WITH items_monthly AS (
     SELECT strftime(o.order_date, '%Y-%m') AS month,
            SUM(i.item_amount) AS gross_sales
@@ -182,10 +183,10 @@ LEFT JOIN payments_monthly p ON p.month = i.month
 LEFT JOIN orders_monthly   o ON o.month = i.month
 ORDER BY i.month;
 
-SELECT * FROM mart_monthly_sales ORDER BY month;`,
+SELECT * FROM rpt_monthly_sales ORDER BY month;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
-        tableExists(s, 'mart_monthly_sales') &&
+        tableExists(s, 'rpt_monthly_sales') &&
         lastQueryRowCountEquals(s, 2) &&
         lastQueryContainsRow(s, {
           month: '2024-03',
@@ -207,20 +208,20 @@ SELECT * FROM mart_monthly_sales ORDER BY month;`,
           cancelled_orders: 0,
           refunded_orders: 1,
         }),
-      explanation: `**Two rows. That's the mart.** Every modeling decision from lessons 1-9 is now compressed into one query: grain (month), classification (orders → fact, customer → dim), data trust (\`unique\` on the PKs), join safety (pre-aggregated at the shared grain). The mart is the *product*; everything else was scaffolding. From here on, a stakeholder writes one SELECT and gets every monthly number that matters.`,
+      explanation: `**Two rows. That's the report.** Every modeling decision from lessons 1-9 is now compressed into one query: grain (month), classification (orders → fact, customer → dim), data trust (\`unique\` on the PKs), join safety (pre-aggregated at the shared grain). The report is the *product*; everything else was scaffolding. From here on, a stakeholder writes one SELECT and gets every monthly number that matters.`,
     },
     {
       kind: 'checkpoint',
       id: 'ytd-aov-from-mart',
-      question: `Your mart has monthly \`paid_revenue\` and \`paid_orders\`. A stakeholder asks for **year-to-date AOV** across both months. What's the correct formula?`,
+      question: `Your report has monthly \`paid_revenue\` and \`paid_orders\`. A stakeholder asks for **year-to-date AOV** across both months. What's the correct formula?`,
       options: [
         'Average the two monthly AOVs together: ((460/2) + (600/3)) / 2 = 215',
         'Sum the monthly revenues, sum the monthly order counts, then divide: SUM(paid_revenue) / SUM(paid_orders) = 1060 / 5 = 212',
-        'The mart can\'t answer this — go back to `fact_payments`',
+        'The report can\'t answer this — go back to `fact_payments`',
         'Take the larger of the two monthly AOVs (230) as a conservative estimate',
       ],
       correctIndex: 1,
-      explanation: `**1060 / 5 = 212.** Averaging the monthly AOVs gives 215 — wrong, because AOV is a *ratio* and ratios are **non-additive**. The mart stores the ingredients (\`paid_revenue\` and \`paid_orders\`); any consumer recomputes the ratio at any grouping they need. This is exactly why we kept AOV *out* of the mart in the first place. Every discipline — grain, classification, join safety, additivity — converges into a mart any stakeholder can query in one line. One thing is still missing, though: this mart only slices by *time*. The last lesson puts the dims you built to work, slicing the same facts by any attribute you like.`,
+      explanation: `**1060 / 5 = 212.** Averaging the monthly AOVs gives 215 — wrong, because AOV is a *ratio* and ratios are **non-additive**. The report stores the ingredients (\`paid_revenue\` and \`paid_orders\`); any consumer recomputes the ratio at any grouping they need. This is exactly why we kept AOV *out* of the report in the first place. Every discipline — grain, classification, join safety, additivity — converges into a report any stakeholder can query in one line. One thing is still missing, though: this report only slices by *time*. The last lesson puts the dims you built to work, slicing the same facts by any attribute you like.`,
     },
   ],
 }

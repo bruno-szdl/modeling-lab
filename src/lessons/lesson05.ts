@@ -4,6 +4,7 @@ import {
   lastQueryRowCountEquals,
   lastQueryColumnsEqual,
   lastQueryContainsRow,
+  lastQueryRowValuesEqual,
   tableExists,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
@@ -42,14 +43,13 @@ const lesson05: Lesson = {
 
 Facts grow forever as events happen — that's their shape. The discipline is to keep them lean: clean grain, metrics ready to \`SUM\`, attributes pushed out to dims where they can be edited in one place.
 
-Facts and dims together are the **model layer** (\`raw → models → mart\`): built once from raw, then queried by every mart and report downstream. This lesson builds the fact half.
+Facts and dims together are your **dimensional model** — in dbt, the heart of the **marts** layer (\`raw → staging → marts\`): built once from the clean staging tables, then queried by every aggregated mart and report downstream. This lesson builds the fact half.
 
 Two facts can share an entity but live at **different grains**. \`fact_orders\` is "one order"; \`fact_order_items\` is "one line on an order". Don't merge them — different grains answer different questions.
 
 **Put a fact in the middle and connect it to its dims by foreign key, and the shape you draw is a star** (see the diagram above): the fact is the hub, each dim is a point. That's the **star schema**, the default way analytics engineers model for reporting. \`fact_orders\` joins out to \`dim_customers\`, \`dim_products\`, and \`dim_date\` — each metric lives once in the fact, each attribute lives once in a dim.
 
 There's a tempting alternative — **One Big Table (OBT)**: flatten everything into one wide table so no query ever joins. Easier to query, harder to keep honest. The last checkpoint in this lesson weighs that trade against the star.`,
-  dbtBridge: `In dbt, each of a fact's foreign keys gets a \`relationships\` test pointing back to its dim's PK — so a fact row referencing a customer who isn't in \`dim_customers\` fails CI instead of silently dropping out of a JOIN later.`,
   seeds: DATASHOP_SEEDS,
   // dim_customers and dim_products were the work of lesson 3; pre-build
   // them here so this lesson can focus on the fact side with both halves
@@ -144,13 +144,38 @@ FROM fact_payments;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
         tableExists(s, 'fact_payments') &&
-        lastQueryContainsRow(s, { total_rows: 7, distinct_payment_ids: 7, distinct_orders: 6 }),
+        lastQueryRowValuesEqual(s, [7, 7, 6]),
       explanation: `7 rows, 7 distinct payments, but only 6 distinct orders — because order **O006** has two payment rows (a \`paid\` and a \`refunded\`). The grain of \`fact_payments\` is therefore "one payment", *not* "one order". If you were to count "orders that received any payment" by counting \`fact_payments\` rows, you'd over-count by one. Always check.`,
+    },
+    {
+      kind: 'sql',
+      id: 'build-obt',
+      prompt: `Before the star pays off, build the alternative it competes with. \`orders_everything\` is a **One Big Table**: every customer attribute copied straight onto the order row, so no report ever joins. Join \`fact_orders\` to \`dim_customers\` on \`customer_id\` and pull the name, city, and state across.`,
+      starterSql: `CREATE OR REPLACE TABLE orders_everything AS
+SELECT
+    o.order_id,
+    o.order_date,
+    o.order_status,
+    o.customer_id,
+    c.customer_name,
+    c.city,
+    c.state
+FROM fact_orders o
+JOIN dim_customers c ON c.customer_id = o.customer_id;
+
+SELECT * FROM orders_everything ORDER BY order_id;`,
+      validate: (s) =>
+        lastQuerySucceeded(s) &&
+        tableExists(s, 'orders_everything') &&
+        lastQueryRowCountEquals(s, 6) &&
+        lastQueryContainsRow(s, { order_id: 'O001', customer_name: 'Ana Lima' }) &&
+        lastQueryContainsRow(s, { order_id: 'O003', customer_name: 'Ana Lima' }),
+      explanation: `Still **6 rows** — one per order. The join didn't multiply anything, because \`customer_id\` is the *unique PK* of \`dim_customers\`, so each order matched exactly one customer. (Row multiplication — fan-out — is a later lesson; this join is grain-safe.) The catch is the **duplication**: **Ana Lima** is now stored on two rows (O001 and O003), **Bruno Costa** on two (O002 and O006). Today they all agree. The day Ana's name is corrected, you have to find and rewrite every row that carries it, and any row you miss silently disagrees with the rest. In the star, her name lives on exactly *one* row in \`dim_customers\`. The next checkpoint weighs that trade head-on.`,
     },
     {
       kind: 'checkpoint',
       id: 'star-vs-obt',
-      question: `A teammate proposes skipping dims entirely: one wide table, \`orders_everything\`, with the customer's name and city and the product's details copied onto every order row. What does the **star schema** (separate \`fact_orders\` + dims) buy you that the one-big-table version doesn't?`,
+      question: `You just built \`orders_everything\` by copying customer attributes onto every order row. A teammate wants to go all the way: skip dims entirely, copy the product details on too, and never write a JOIN again. What does the **star schema** (separate \`fact_orders\` + dims) buy you that this one-big-table version doesn't?`,
       options: [
         'Nothing — the wide table is strictly better because it never needs a JOIN',
         'Each attribute lives in exactly one place: fix a customer\'s name once in `dim_customers` and every fact picks it up — no million-row rewrite, no drift',

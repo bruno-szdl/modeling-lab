@@ -11,5 +11,5 @@
   <text x="34" y="108" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--color-accent-orange)">✗</text>
   <text x="56" y="108" font-size="10" fill="currentColor">AOV = revenue ÷ orders</text>
   <text x="372" y="108" font-size="9" font-weight="700" text-anchor="end" style="fill:var(--color-accent-orange)">non-additive — recompute, never sum</text>
-  <text x="200" y="138" font-family="Inter, system-ui, sans-serif" font-size="10" fill="currentColor" opacity="0.65" text-anchor="middle">a mart stores additive ingredients; ratios get recomputed at query time</text>
+  <text x="200" y="138" font-family="Inter, system-ui, sans-serif" font-size="10" fill="currentColor" opacity="0.65" text-anchor="middle">a report stores additive ingredients; ratios get recomputed at query time</text>
 </svg>

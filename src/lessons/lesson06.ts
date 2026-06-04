@@ -51,7 +51,6 @@ Two flavours of key worth naming:
 - A **surrogate key** is one the warehouse mints itself (often a plain integer), independent of the source. You reach for it when the natural key isn't stable, or when you need to keep history (type-2) so a fact can point at the *version* of an entity that was current when the event happened. We don't build surrogate keys here — type-2 history is a v2 topic — but you should know the word and why it exists.
 
 The payoff is a single rule you'll lean on for the rest of the lab: **a FK → PK join into a dim whose PK is unique can never change the fact's row count.** Each fact row matches exactly one dim row. That uniqueness — the grain check, made permanent — *is* join safety. Lesson 7 is about joins that lose rows; Lesson 8 is about what happens when this guarantee breaks and a join starts multiplying them.`,
-  dbtBridge: `Two tests encode this lesson. \`unique\` + \`not_null\` on a dim's PK is the grain check, run automatically on every build. A \`relationships\` test on a fact's FK asserts that every value points at a row that actually exists in the dim's PK — so a fact referencing a customer who isn't in \`dim_customers\` fails CI instead of silently vanishing from a JOIN later.`,
   seeds: DATASHOP_SEEDS,
   // The learner built these in L4 (dims) and L5 (facts); pre-build them so this
   // lesson can focus on the key that connects them.

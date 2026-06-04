@@ -4,6 +4,7 @@ import {
   lastQueryRowCountEquals,
   lastQueryHasColumns,
   lastQueryContainsRow,
+  lastQueryRowValuesEqual,
   tableExists,
 } from '../engine/validators'
 import sketch from '../sketches/lesson03.svg?raw'
@@ -12,7 +13,7 @@ import sketch from '../sketches/lesson03.svg?raw'
  * Lesson 3 — The staging layer.
  *
  * Sits between L2 (column roles) and L4 (dims), where the
- * raw -> staging -> models path is first relevant. The rest of the lab
+ * raw -> staging -> marts path is first relevant. The rest of the lab
  * folds staging into the dim/fact build (clean seeds); this lesson is
  * the one place the learner does the cleanup by hand.
  *
@@ -41,10 +42,9 @@ const lesson03: Lesson = {
   },
   concept: `Before you model anything, the raw table has to be *trustworthy*. Operational systems hand you data that's almost right: column names nobody agreed on, dates stored as text, a state code that's \`SP\` on one row and \`sp\` on the next, a name with a stray leading space. The **staging layer** is where you fix exactly that.
 
-The full path a table travels is \`raw → staging → models (dims + facts) → mart\`. Staging is the first hop: **one staging model per raw table**, cleaning it **1:1** — rename to a convention, cast types, standardize values, trim the junk — *without changing the grain*. One row in goes to one row out. By convention we name it \`stg_*\`.
+The full path a table travels is \`raw → staging → marts\` — the three layers dbt organizes a project into (with an optional **intermediate** layer between staging and marts for complex multi-step logic, which this lab doesn't need). Staging is the first hop: **one staging model per raw table**, cleaning it **1:1** — rename to a convention, cast types, standardize values, trim the junk — *without changing the grain*. One row in goes to one row out. By convention we name it \`stg_*\`.
 
 What staging is **not**: it isn't modeling yet. No joins, no derived business rules, no \`price_band\`, no dims. It just makes the raw table clean and predictable so the dim and fact you build next can assume good inputs. (The rest of this lab folds this cleanup straight into the dim/fact build to keep the focus on modeling decisions — this lesson is the one place you do it by hand.)`,
-  dbtBridge: `In dbt these live in \`models/staging/\` — one \`stg_*.sql\` per source, usually materialized as a *view*, doing precisely this rename/cast/standardize hop from \`source()\` to a clean staging model. The [data transformation lab](https://transform-lab.datagym.io) builds them properly.`,
   // No seeds: this lesson works against one deliberately messy table so it
   // never has to share the stage with the clean raw_customers other lessons use.
   preMaterialize: [
@@ -129,8 +129,7 @@ FROM stg_customers;`,
       validate: (s) =>
         lastQuerySucceeded(s) &&
         tableExists(s, 'stg_customers') &&
-        lastQueryHasColumns(s, ['total_rows', 'distinct_customer_ids']) &&
-        lastQueryContainsRow(s, { total_rows: 4, distinct_customer_ids: 4 }),
+        lastQueryRowValuesEqual(s, [4, 4]),
       explanation: `**4 and 4** — same grain as the raw table, just clean. \`stg_customers\` is now the trustworthy foundation: when the next lesson builds \`dim_customers\`, it can assume the name is trimmed, the state is standardized, and \`signup_date\` is a real date — and spend its energy on *modeling* decisions (what to derive, what to document) instead of cleanup.`,
     },
     {

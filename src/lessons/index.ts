@@ -35,7 +35,7 @@ import lesson11 from './lesson11'
  *                                       1800-vs-1060 fan-out trap)
  *   9   — Metrics & additivity         (definition/formula/grain; additive vs
  *                                       semi vs non-additive; AOV ingredients)
- *   10  — Build the mart               (the monthly mart: facts sliced by time)
+ *   10  — Build the report             (the monthly report: facts sliced by time)
  *   11  — Slice by any dimension       (the star pays off: same facts sliced
  *                                       by an attribute) → finale screen
  *

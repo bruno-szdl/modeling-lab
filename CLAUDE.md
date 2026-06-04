@@ -6,7 +6,7 @@ Guidance for Claude Code when working in this repository.
 
 The **Data Modeling Lab** — `modeling-lab.datagym.io`. A browser-only, no-account interactive lab that teaches data modeling *for analytics engineering*. Sister to `transform-lab` (the dbt lab); part of the DataGym.io family.
 
-It is **not** a complete data-modeling course. It teaches the modeling decisions an analytics engineer makes when turning raw operational tables into analytics-ready models: grain, entity vs event, column roles, staging, dims, facts, keys/relationships, joins-that-don't-break-grain, fan-out, metrics + additivity, and the final marts.
+It is **not** a complete data-modeling course. It teaches the modeling decisions an analytics engineer makes when turning raw operational tables into analytics-ready models: grain, entity vs event, column roles, staging, dims, facts, keys/relationships, joins-that-don't-break-grain, fan-out, metrics + additivity, and the final reports.
 
 Audience: SQL-proficient analysts moving toward analytics engineering. Not absolute beginners.
 
@@ -62,11 +62,14 @@ src/
     lesson09.ts     Metrics & additivity — definition/formula/grain; additive
                     vs semi- vs non-additive; AOV ingredients (store ratios'
                     ingredients, not the ratio).
-    lesson10.ts     The monthly mart (facts sliced by time).
+    lesson10.ts     The monthly report (facts sliced by time). Aggregated
+                    tables are named rpt_* ("reports") and framed as the
+                    consumption-ready top of the marts layer — NOT a layer
+                    below dims/facts. "mart"/"marts layer" = dims+facts+reports.
     lesson11.ts     Dimension-sliced capstone (the star pays off — fact→dim
                     join, single source of truth). The FINALE; it
-                    pre-materializes mart_monthly_sales so CourseComplete can
-                    show both marts side by side.
+                    pre-materializes rpt_monthly_sales so CourseComplete can
+                    show both reports side by side.
     index.ts        lessons[], getLessonById, getLastLessonId, isSideQuest, stepKey
                     NOTE: data-quality is NOT a lesson — see "What's NOT in v1" below
   store/
@@ -78,7 +81,7 @@ src/
     Editor.tsx      Single-buffer Monaco + Run button (⌘↵)
     ResultsPanel.tsx Renders `lastQuery` rows / error
     IntroPage.tsx   Lesson-0 landing
-    CourseComplete.tsx Mart finale (shown after lesson 11; previews both marts)
+    CourseComplete.tsx Course-complete finale (after lesson 11; previews both rpt_* reports)
     Header / LabBar / PrivacyPage / ErrorBoundary / Markdownish
 ```
 
@@ -93,7 +96,7 @@ type Step =
 
 type Lesson = {
   id: number; title; concept; schemaSketch?; seeds?; preMaterialize?;
-  steps: Step[]; furtherReading?; dbtBridge?
+  steps: Step[]; furtherReading?
 }
 ```
 
@@ -108,7 +111,7 @@ type Lesson = {
 - **No comments explaining what code does.** Only WHY-comments (hidden constraint, surprising behavior).
 - **No em-dashes** in user-facing text where avoidable.
 - **i18n**: currently English-only. PT support is the next major polish task.
-- **dbt** appears only as `> 💡 In dbt: …` callouts inside `Lesson.dbtBridge`. It is a bridge, never a main topic.
+- **dbt** is a bridge, never a main topic. The per-lesson `dbtBridge` callouts were removed (they leaned on dbt vocabulary the audience — analysts *moving toward* AE — may not have yet, adding noise for most to help a few). The lab now points at dbt/transform-lab **once**, in the `CourseComplete` finale. Do not reintroduce per-lesson dbt callouts.
 
 ## Reference numbers (DataShop)
 
@@ -128,12 +131,12 @@ Memorize these — every lesson keys off them.
 | paid_revenue (status='paid') | 1060 |
 | fan-out trap (SUM amount JOIN items, L8) | **1800** |
 | AOV (1060 / 5 paid orders, L9) | 212 |
-| mart_monthly_sales (L10) | 2 rows (2024-03 and 2024-04) |
-| mart_sales_by_category (L11) | Course 780 / 5 units, Accessory 280 / 6 units |
+| rpt_monthly_sales (L10) | 2 rows (2024-03 and 2024-04) |
+| rpt_sales_by_category (L11) | Course 780 / 5 units, Accessory 280 / 6 units |
 
 ## What's NOT in v1
 
-- **Data quality / testing as a lesson** (notebook `02b`). Cut deliberately: testing is a discipline of its own and overlaps with transform-lab's territory. The grain check in lesson 1 is the only DQ touchpoint, framed as the operational definition of a PK — with a one-paragraph `dbtBridge` pointing the learner at transform-lab for the four named tests. Do **not** add a DQ side quest here; it would be a worse version of what transform-lab already does. (The staging lesson — now core lesson 3 — is *shaping*, not DQ: rename/cast/standardize/trim with the grain preserved, and it deliberately makes **no** test assertions — keep that line; the moment a contributor wants to add `not_null`/`unique`/`accepted_values` asserts, that's transform-lab's job.)
+- **Data quality / testing as a lesson** (notebook `02b`). Cut deliberately: testing is a discipline of its own and overlaps with transform-lab's territory. The grain check in lesson 1 is the only DQ touchpoint, framed as the operational definition of a PK — with the consolidated transform-lab pointer in the `CourseComplete` finale covering the four named tests. Do **not** add a DQ side quest here; it would be a worse version of what transform-lab already does. (The staging lesson — now core lesson 3 — is *shaping*, not DQ: rename/cast/standardize/trim with the grain preserved, and it deliberately makes **no** test assertions — keep that line; the moment a contributor wants to add `not_null`/`unique`/`accepted_values` asserts, that's transform-lab's job.)
 - SCDs and fact-table types (notebook 07/08) — deferred to v2. Type-1 vs type-2 and surrogate keys are *named* in lesson 4's name-edit checkpoint and in lesson 6 (Keys & relationships) — so type-1 overwrite and natural keys aren't taught as the whole story — but type-2 history and surrogate keys are not built here.
 - The three notebook session quizzes — replaced by inline checkpoints
 - Multi-language UI — EN only at launch

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 340" style="width:100%;height:auto;display:block;" preserveAspectRatio="xMidYMid meet" font-family="JetBrains Mono, ui-monospace, monospace">
+  <!-- relationship lines: child FK → parent PK (dot marks the PK / "one" side) -->
+  <!-- orders.customer_id → customers.customer_id -->
+  <path d="M 190 138 L 112 88" fill="none" stroke-width="1.3" stroke-linecap="round" style="stroke:var(--color-accent-orange)" opacity="0.7"/>
+  <circle cx="112" cy="88" r="2.6" style="fill:var(--color-accent-orange)" opacity="0.85"/>
+  <text x="120" y="118" font-size="8" fill="currentColor" opacity="0.7">customer_id</text>
+
+  <!-- order_items.order_id → orders.order_id -->
+  <path d="M 330 94 L 300 138" fill="none" stroke-width="1.3" stroke-linecap="round" style="stroke:var(--color-accent-orange)" opacity="0.7"/>
+  <circle cx="300" cy="138" r="2.6" style="fill:var(--color-accent-orange)" opacity="0.85"/>
+  <text x="318" y="118" font-size="8" fill="currentColor" opacity="0.7">order_id</text>
+
+  <!-- order_items.product_id → products.product_id -->
+  <path d="M 388 94 L 388 252" fill="none" stroke-width="1.3" stroke-linecap="round" style="stroke:var(--color-accent-orange)" opacity="0.7"/>
+  <circle cx="388" cy="252" r="2.6" style="fill:var(--color-accent-orange)" opacity="0.85"/>
+  <text x="394" y="176" font-size="8" fill="currentColor" opacity="0.7">product_id</text>
+
+  <!-- payments.order_id → orders.order_id -->
+  <path d="M 112 250 L 180 214" fill="none" stroke-width="1.3" stroke-linecap="round" style="stroke:var(--color-accent-orange)" opacity="0.7"/>
+  <circle cx="180" cy="214" r="2.6" style="fill:var(--color-accent-orange)" opacity="0.85"/>
+  <text x="120" y="238" font-size="8" fill="currentColor" opacity="0.7">order_id</text>
+
+  <!-- raw_customers (entity, top-left) -->
+  <rect x="18" y="22" width="150" height="66" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5" rx="3"/>
+  <text x="30" y="40" font-size="8" fill="currentColor" opacity="0.6" letter-spacing="0.08em">ENTITY</text>
+  <text x="30" y="57" font-size="11" fill="currentColor">raw_customers</text>
+  <text x="30" y="77" font-size="10" font-weight="700" style="fill:var(--color-accent-orange)">customer_id (PK)</text>
+
+  <!-- raw_order_items (detail of event, top-right) -->
+  <rect x="312" y="16" width="152" height="78" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5" rx="3"/>
+  <text x="324" y="33" font-size="8" fill="currentColor" opacity="0.6" letter-spacing="0.08em">DETAIL OF EVENT</text>
+  <text x="324" y="50" font-size="11" fill="currentColor">raw_order_items</text>
+  <text x="324" y="69" font-size="10" font-weight="700" style="fill:var(--color-accent-orange)">order_item_id (PK)</text>
+  <text x="324" y="86" font-size="9" fill="currentColor" opacity="0.7">order_id, product_id (FK)</text>
+
+  <!-- raw_orders (event, center hub) -->
+  <rect x="164" y="138" width="152" height="76" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.7" rx="3"/>
+  <text x="176" y="156" font-size="8" fill="currentColor" opacity="0.6" letter-spacing="0.08em">EVENT</text>
+  <text x="176" y="173" font-size="11" fill="currentColor">raw_orders</text>
+  <text x="176" y="192" font-size="10" font-weight="700" style="fill:var(--color-accent-orange)">order_id (PK)</text>
+  <text x="176" y="209" font-size="9" fill="currentColor" opacity="0.7">customer_id (FK)</text>
+
+  <!-- raw_payments (event, bottom-left) -->
+  <rect x="18" y="250" width="150" height="78" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5" rx="3"/>
+  <text x="30" y="268" font-size="8" fill="currentColor" opacity="0.6" letter-spacing="0.08em">EVENT</text>
+  <text x="30" y="285" font-size="11" fill="currentColor">raw_payments</text>
+  <text x="30" y="304" font-size="10" font-weight="700" style="fill:var(--color-accent-orange)">payment_id (PK)</text>
+  <text x="30" y="321" font-size="9" fill="currentColor" opacity="0.7">order_id (FK)</text>
+
+  <!-- raw_products (entity, bottom-right) -->
+  <rect x="312" y="252" width="150" height="66" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5" rx="3"/>
+  <text x="324" y="270" font-size="8" fill="currentColor" opacity="0.6" letter-spacing="0.08em">ENTITY</text>
+  <text x="324" y="287" font-size="11" fill="currentColor">raw_products</text>
+  <text x="324" y="307" font-size="10" font-weight="700" style="fill:var(--color-accent-orange)">product_id (PK)</text>
+</svg>

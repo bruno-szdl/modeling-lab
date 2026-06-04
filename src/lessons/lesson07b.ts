@@ -15,7 +15,7 @@ import sketch from '../sketches/lesson07b.svg?raw'
  * Optional. Maps to notebook 03b. Lighter than core lessons (4 steps).
  * Sits after L7 (joins) so its closing calendar-spine LEFT JOIN *applies*
  * the LEFT JOIN taught there, rather than previewing it. Still placed before
- * L10 so the monthly mart can refer back to "the calendar spine from the side
+ * L10 so the monthly report can refer back to "the calendar spine from the side
  * quest". The unique payoff: a generated calendar dimension demonstrates that
  * "dimension" is a ROLE (context for facts) — not a statement about where
  * the data came from. The closing step delivers the "every day shows up
@@ -41,7 +41,6 @@ const lesson07b: Lesson = {
 A **date dimension** solves this: compute every calendar attribute *once*, in a table, then JOIN to it whenever a query needs them. The dim is *generated* (no source data), but it's still a dim — it has a grain (one day), a PK (\`date_day\`), and descriptive attributes that facts look up via the key.
 
 This is an **optional side quest** — skip it and the main lab still works — but it ends on the pattern every dashboard secretly leans on: joining *from* a calendar so days with zero activity still appear instead of vanishing from the report.`,
-  dbtBridge: `Packages like \`dbt_utils\` and \`dbt_date\` ship \`date_spine()\` macros that generate exactly this. You're learning what those macros emit so you can read, debug, and customize them.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {

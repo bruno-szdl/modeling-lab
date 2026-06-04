@@ -33,14 +33,13 @@ const lesson04: Lesson = {
   schemaSketch: { svg: sketch, alt: 'dim_customers: a small table with a header row (customer_id, customer_name, city, state, signup_year) and a few sample rows. Caption: few rows, many descriptive columns, zero metrics' },
   concept: `A **dimension** table is one row per **entity** — one customer, one product. It carries the descriptive attributes that every report and chart will reach for: name, city, category, price band. By convention, we name it \`dim_*\`.
 
-Dimensions are the first half of the **model layer**. The full path a table travels is \`raw → staging → models (dims + facts) → mart\`: *staging* cleans each raw table 1:1 (rename, cast types, fix the obvious mess) without touching its grain; the *model layer* reshapes that clean data into dimensions and facts; the *mart* aggregates them into the answer a stakeholder queries. This lab folds the staging cleanup into the dim/fact build to keep the focus on modeling decisions, but in a real project staging is its own layer (the staging lesson just before this one walks through that cleanup by hand). Facts are the other half of the model layer; you'll build those next.
+Dimensions are half of your **dimensional model** — the dims and facts that, in dbt, live together in the **marts** layer (the analytics-ready models everything downstream consumes). The full path a table travels is \`raw → staging → marts\`: *staging* cleans each raw table 1:1 (rename, cast types, fix the obvious mess) without touching its grain; the **marts** layer reshapes that clean data into dimensions and facts, and the aggregated tables a stakeholder queries are built on top of them. (dbt allows an optional *intermediate* layer between the two for complex building blocks; this lab doesn't need one.) This lab folds the staging cleanup into the dim/fact build to keep the focus on modeling decisions, but in a real project staging is its own layer — the staging lesson just before this one walks through that cleanup by hand. Facts are the other half; you'll build those next.
 
 Three things matter:
 
 1. **Few rows, many columns.** Dimensions describe small, stable sets. Adding a customer means adding *one* row.
 2. **No metrics live here.** Quantities and amounts belong in facts (next lesson). \`list_price\` is the *posted* price of the product — an attribute. \`unit_price\` from \`raw_order_items\` is the price actually *paid* in one sale — a metric. Same kind of value, different role.
 3. **Building a dim is a choice.** What columns to include, what to rename, what to derive (a \`signup_year\` from \`signup_date\`, a \`price_band\` from \`list_price\`). The dim is the canonical, agreed-upon description of the entity. If a rule lives in 20 reports, those reports will drift; if it lives in the dim, they can't.`,
-  dbtBridge: `In dbt, a dim is just a SQL file (e.g. \`models/marts/dim_customers.sql\`) with \`unique\` + \`not_null\` tests on its PK — the same grain check from lesson 1, made permanent.`,
   seeds: DATASHOP_SEEDS,
   steps: [
     {

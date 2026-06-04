@@ -58,7 +58,6 @@ Three patterns to internalize:
 3. **Anti-join** — \`LEFT JOIN ... WHERE right.column IS NULL\` finds the rows on the left that didn't match anything. "Find the missing" is the most common shape this takes.
 
 A join can break grain in *two* directions. This lesson is about the first: keeping rows you'd otherwise **lose**. The mirror image — a join that silently **multiplies** rows, because the key isn't unique on the right side — opens **Lesson 8**, where that same multiplication lands on a metric and becomes **fan-out**. A JOIN is only ever as trustworthy as the grain of the table on each side of it (the join-safety rule from Lesson 6).`,
-  dbtBridge: `dbt doesn't change JOIN syntax — it's plain SQL. But a \`relationships\` test catches *referential* slips (an FK pointing at a row that no longer exists) before they show up as silent JOIN bugs. And almost every \`models/marts/*.sql\` starts with a LEFT JOIN from a "spine" (a dim or a calendar), so dashboards don't silently lose days or customers.`,
   seeds: DATASHOP_SEEDS,
   // The DataShop is too tidy for an honest LEFT-vs-INNER demo: every
   // customer has at least one order. Add Eve (C999) with no orders so the

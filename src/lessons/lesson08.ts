@@ -4,6 +4,7 @@ import {
   lastQueryScalarEquals,
   lastQueryContainsRow,
   lastQueryHasColumns,
+  lastQueryRowCountEquals,
 } from '../engine/validators'
 import { DATASHOP_SEEDS } from '../seeds'
 import sketch from '../sketches/lesson08.svg?raw'
@@ -40,7 +41,6 @@ A join multiplies rows when the key it matches on **isn't unique on the right si
 You'll watch it happen twice. First on **row counts**, where you can see it: a duplicate dim row takes a 6-row join up to 8. Then on a **metric**, where you can't: \`SUM\` a value *after* a join that duplicated its rows, and the SUM counts the same value once per duplicate. That second one is **fan-out**, and it is the single most expensive mistake in analytics — a revenue number that's quietly 70% too high, with no error and no warning.
 
 The rule that prevents it, which the next lesson builds on: **compute every metric at the grain of its own fact, and never \`SUM\` across a join to a finer grain.**`,
-  dbtBridge: `A \`unique\` test on \`dim_customers.customer_id\` would have failed the build the instant that duplicate Bruno appeared — catching the broken PK *before* it ever reached a JOIN and silently doubled a number. It's the Lesson 1 grain check, run on every build so a human never has to remember to.`,
   seeds: DATASHOP_SEEDS,
   // The learner built these facts in L5; pre-build them so this lesson can run
   // metric queries against them.
@@ -91,6 +91,23 @@ JOIN dim_customers c ON f.customer_id = c.customer_id;`,
     },
     {
       kind: 'sql',
+      id: 'see-the-broken-join',
+      prompt: `The count said **8**, but a bare number hides the damage. *See* it: list the joined rows — each order beside the customer row it matched — and find the orders that came back twice.`,
+      starterSql: `SELECT
+    f.order_id,
+    c.customer_id,
+    c.customer_name
+FROM fact_orders f
+JOIN dim_customers c ON f.customer_id = c.customer_id
+ORDER BY f.order_id;`,
+      validate: (s) =>
+        lastQuerySucceeded(s) &&
+        lastQueryRowCountEquals(s, 8) &&
+        lastQueryContainsRow(s, { order_id: 'O002', customer_name: 'Bruno Costa (dup)' }),
+      explanation: `There it is in the rows themselves: **O002 and O006 each appear twice** — once paired with the real Bruno, once with \`Bruno Costa (dup)\`. Bruno's 2 orders became 4 rows; the other 4 orders stayed put, so 4 + 4 = 8. A non-unique key on the right side doesn't error — it quietly *photocopies* every left row that matches it. Next, watch the same photocopying corrupt a number you actually care about.`,
+    },
+    {
+      kind: 'sql',
       id: 'paid-revenue',
       prompt: `Set the honest baseline first. Compute **paid revenue** the right way: sum \`amount\` from \`fact_payments\` where \`payment_status = 'paid'\`, at its own grain ("one payment"). No joins.`,
       starterSql: `SELECT SUM(amount) AS paid_revenue
@@ -115,6 +132,24 @@ WHERE p.payment_status = 'paid';`,
       validate: (s) =>
         lastQuerySucceeded(s) && lastQueryScalarEquals(s, 1800),
       explanation: `**1800, not 1060.** This is **fan-out**: each \`paid\` payment got JOINed once per line item on its order. PAY001 (\`amount=180\`) fanned out to 2 rows (O001 has 2 items), PAY002 (\`280\`) fanned to 2, PAY004 (\`280\`) fanned to 2, PAY005 (\`120\`) and PAY006 (\`200\`) stayed at 1 each. Sum: 2×180 + 2×280 + 2×280 + 120 + 200 = **1800**. The JOIN looked harmless; the SUM silently double-counted. This is why \`fact_payments\` and \`fact_order_items\` must be aggregated *separately* before being combined — the discipline you'll formalize in the next lesson.`,
+    },
+    {
+      kind: 'sql',
+      id: 'see-the-fan-out',
+      prompt: `The SUM is wrong by 740 — now *see* where that came from. Drop the \`SUM\` and list the raw joined rows instead: each payment's \`amount\` beside the line item it got paired with. Watch a single payment's amount land on more than one row.`,
+      starterSql: `SELECT
+    p.payment_id,
+    p.amount,
+    i.order_item_id
+FROM fact_payments p
+JOIN fact_order_items i ON i.order_id = p.order_id
+WHERE p.payment_status = 'paid'
+ORDER BY p.payment_id, i.order_item_id;`,
+      validate: (s) =>
+        lastQuerySucceeded(s) &&
+        lastQueryRowCountEquals(s, 8) &&
+        lastQueryContainsRow(s, { payment_id: 'PAY001', amount: 180 }),
+      explanation: `**Eight rows for five payments.** \`PAY001\`'s \`amount\` of 180 sits on *two* rows (O001 has two line items); \`PAY002\` and \`PAY004\` likewise. \`SUM(amount)\` over this result adds each of those amounts twice — 2×180 + 2×280 + 2×280 + 120 + 200 = **1800**. Look closely: every individual \`amount\` is correct; it's the *repetition* that lies. The number had no error message and no obvious tell — which is exactly why fan-out is the most expensive bug in analytics, and why you never \`SUM\` a metric across a join to a finer grain.`,
     },
     {
       kind: 'checkpoint',

@@ -74,6 +74,29 @@ export function lastQueryRowHasValue(
 }
 
 /**
+ * Did the most recent run return exactly ONE row whose cell values equal
+ * `expected` as a multiset (order-independent, string compare)?
+ *
+ * Use this when the answer is about the VALUES, not the column names — so a
+ * correct grain check passes however the learner aliased (or didn't alias) its
+ * columns. Forcing a specific alias would contradict this file's contract:
+ * validators key off the result, not the literal SQL text.
+ */
+export function lastQueryRowValuesEqual(s: LessonState, expected: unknown[]): boolean {
+  const r = s.lastQuery?.result
+  if (!r || r.rowCount !== 1) return false
+  const got = r.rows[0].map((c) => String(c))
+  if (got.length !== expected.length) return false
+  const pool = [...got]
+  for (const v of expected) {
+    const idx = pool.indexOf(String(v))
+    if (idx === -1) return false
+    pool.splice(idx, 1)
+  }
+  return true
+}
+
+/**
  * Did the most recent single-row, single-cell result equal `expected`? Handy
  * for `SELECT COUNT(*) FROM ...` style checks. Compares as string.
  */

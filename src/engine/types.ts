@@ -107,11 +107,6 @@ export interface Lesson {
   /** Ordered list of SQL tasks and checkpoints. */
   steps: Step[]
   furtherReading?: FurtherReadingLink[]
-  /**
-   * Optional `> 💡 In dbt...` bridge callout shown at the bottom of the
-   * concept. Keeps the dbt-as-bridge framing without making it a section.
-   */
-  dbtBridge?: string
 }
 
 /** Stable key for a Step's progress entry: `<lessonId>.<stepId>`. */

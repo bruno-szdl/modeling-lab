@@ -14,7 +14,7 @@
  *   paid_revenue        1060   (sum of `paid` payments)
  *   the fan-out trap    1800   (5 paid payments × items = 8 rows, then SUM)
  *   AOV                 212    (1060 / 5 paid orders)
- *   mart                2 rows (one per month: 2024-03, 2024-04)
+ *   rpt_monthly_sales   2 rows (one per month: 2024-03, 2024-04)
  */
 
 import customersCsv from './raw_customers.csv?raw'

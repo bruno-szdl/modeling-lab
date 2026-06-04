@@ -38,7 +38,7 @@ export default function Header() {
               <span style={{ color: 'var(--color-accent-orange)' }}>Data Modeling</span> Lab
             </div>
             <span style={{ fontFamily: 'var(--font-sans)', color: 'var(--color-muted)', fontSize: '0.625rem', lineHeight: 1 }}>
-              From raw tables to an analytics mart
+              From raw tables to analytics reports
             </span>
           </div>
         </button>

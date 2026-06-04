@@ -118,16 +118,6 @@ export default function LessonPanel() {
           </div>
         )}
 
-        {/* dbt-bridge aside — after the work, never inside the main narrative.
-            It's an optional connection to dbt for learners who want it, not
-            something a learner has to read to understand the lesson. */}
-        {lesson.dbtBridge && (
-          <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border-subtle)' }}>
-            <SectionLabel>If you go on to dbt</SectionLabel>
-            <DbtBridge text={lesson.dbtBridge} />
-          </div>
-        )}
-
         {/* Further reading */}
         {lesson.furtherReading && lesson.furtherReading.length > 0 && (
           <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border-subtle)' }}>
@@ -443,27 +433,6 @@ function CalloutBox({ tone, children }: { tone: 'hint' | 'solution' | 'success';
       }}
     >
       {children}
-    </div>
-  )
-}
-
-function DbtBridge({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        marginTop: '12px',
-        padding: '8px 10px',
-        background: 'var(--color-accent-bg)',
-        border: '1px solid var(--color-accent-orange-dim)',
-        borderRadius: '5px',
-        color: 'var(--color-text-secondary)',
-        fontSize: '0.75rem',
-        fontFamily: 'var(--font-sans)',
-        lineHeight: 1.5,
-      }}
-    >
-      <strong style={{ color: 'var(--color-accent-orange)' }}>💡 In dbt: </strong>
-      <Markdownish text={text} />
     </div>
   )
 }

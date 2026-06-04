@@ -1,4 +1,5 @@
 import { useGameStore } from '../store/gameStore'
+import schemaErd from '../sketches/schema-erd.svg?raw'
 
 /**
  * Lesson 0: full-width landing. Sells the lab and gets the learner into
@@ -34,9 +35,9 @@ export default function IntroPage() {
           fontFamily: 'var(--font-sans)', fontSize: '1.125rem', lineHeight: 1.55,
           color: 'var(--color-text-secondary)', margin: '0 auto 24px', maxWidth: '560px',
         }}>
-          You'll climb the layers an analytics engineer builds — raw → models (dims + facts) → mart —
+          You'll climb the layers an analytics engineer builds — raw → staging → marts —
           and make the modeling decisions at each step: grain, dimensions, facts, fan-out, and the
-          marts that pull it all together.
+          reports that pull it all together.
         </p>
         <button
           onClick={() => void loadLesson(hasProgress ? useGameStore.getState().currentLessonId || 1 : 1)}
@@ -54,10 +55,30 @@ export default function IntroPage() {
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '32px',
         }}>
           <Fact label="Who it's for" body="Analysts who know some SQL and want to become analytics engineers." />
-          <Fact label="What you'll build" body="Two analytics marts from one star — sales by month and by category — plus a fan-out you'll predict, then break." />
+          <Fact label="What you'll build" body="Two analytics reports from one star — sales by month and by category — plus a fan-out you'll predict, then break." />
           <Fact label="No setup" body="Real SQL runs in your browser against DuckDB. No install, no account, nothing to download." />
           <Fact label="Estimated time" body="~4–5 hours total. Each lesson is self-contained — pick up where you left off." />
         </div>
+
+        <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', fontWeight: 700 }}>The DataShop schema</h2>
+        <p style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>
+          The five raw tables you'll model, and how they relate. Two entities (customers, products),
+          two events (orders, payments), and the line items that detail an order. The dot marks the
+          primary-key side of each link. Click the logo top-left to return here from any lesson.
+        </p>
+        <div
+          role="img"
+          aria-label="Entity-relationship diagram of the five DataShop raw tables. raw_customers (primary key customer_id) and raw_products (primary key product_id) are entities. raw_orders (primary key order_id, foreign key customer_id) and raw_payments (primary key payment_id, foreign key order_id) are events. raw_order_items (primary key order_item_id, foreign keys order_id and product_id) is a detail of an event. The foreign keys link order_items and payments to orders, orders to customers, and order_items to products."
+          style={{
+            marginBottom: '32px',
+            padding: '18px 16px',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border-subtle)',
+            borderRadius: '8px',
+            color: 'var(--color-text-secondary)',
+          }}
+          dangerouslySetInnerHTML={{ __html: schemaErd }}
+        />
 
         <h2 style={{ margin: '0 0 12px', fontSize: '1.125rem', fontWeight: 700 }}>What's inside</h2>
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -72,7 +93,7 @@ export default function IntroPage() {
             ['7b', 'Side quest: dim_date', 'Generate a calendar dim with generate_series, then join from it. Optional.'],
             ['8', 'Fan-out: the join that multiplies rows', 'Predict 1060, run, get 1800 — the most expensive bug in analytics.'],
             ['9', 'Metrics & additivity', 'Definition + formula + grain. Which metrics you can sum, and which you can\'t.'],
-            ['10', 'Build the mart', 'Aggregate each fact at its grain, then join. Two rows out.'],
+            ['10', 'Build the report', 'Aggregate each fact at its grain, then join. Two rows out.'],
             ['11', 'Slice by any dimension', 'The star pays off: the same facts, cut by category or anything else. Model once, slice forever.'],
           ].map(([num, title, desc]) => (
             <li key={num} style={{

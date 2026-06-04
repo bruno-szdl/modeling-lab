@@ -110,7 +110,10 @@ export default function ResultsPanel() {
                         padding: '6px 14px',
                         borderBottom: '1px solid var(--color-border-subtle)',
                         color: cell == null ? 'var(--color-muted)' : 'var(--color-text)',
-                        whiteSpace: 'nowrap',
+                        // `pre` (not `nowrap`) so leading/trailing spaces in a
+                        // cell stay visible — L3 staging literally teaches TRIM,
+                        // and HTML collapses leading whitespace under `nowrap`.
+                        whiteSpace: 'pre',
                       }}
                     >
                       {cell == null ? 'NULL' : String(cell)}
